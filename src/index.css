@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Professional Polish Deep Gold/Amber Palette */
+  --color-amber-50: #FEFCE8;
+  --color-amber-100: #FEF08A;
+  --color-amber-200: #FDE68A; /* Sourcing golden-yellow background */
+  --color-amber-500: #F59E0B;
+  --color-amber-600: #D97706;
+  --color-amber-700: #78350F; /* Sourcing dark-gold text */
+  --color-amber-800: #78350F;
+  --color-amber-900: #451A03;
+  --color-amber-653: #D97706;
+
+  /* Professional Polish Premium Emerald Palette */
+  --color-[#064E3B]: #064E3B; /* Support literal Hex matching */
+  --color-emerald-50: #F0FDF4;
+  --color-emerald-100: #DCFCE7;
+  --color-emerald-150: #BBF7D0;
+  --color-emerald-250: #86EFAC;
+  --color-emerald-500: #10B981;
+  --color-emerald-600: #059669;
+  --color-emerald-650: #064E3B;
+  --color-emerald-700: #047857;
+  --color-emerald-750: #064E3B;
+  --color-emerald-800: #064E3B; /* Prime emerald color from the design */
+  --color-emerald-850: #034433;
+  --color-emerald-900: #022C22;
+  --color-emerald-920: #011E17;
+  --color-emerald-950: #01110E;
+
+  /* Neutral Surface/Fills */
+  --color-stone-50: #F9FAF8; /* Custom premium off-white */
+  --color-stone-100: #E2E8F0;
+  --color-stone-200: #CBD5E1;
+
+  /* Dark mode mappings for the simulation workspace bar */
+  --color-slate-900: #022C22; /* High-contrast top simulation bar background */
+  --color-slate-800: #034433;
+  --color-slate-700: #064E3B;
+  --color-slate-400: #D1D5DB;
+  --color-slate-350: #E5E7EB;
+}
+
+body {
+  background-color: #F9FAF8;
+  color: #1A2E26;
+  font-family: var(--font-sans);
+}
+
+
