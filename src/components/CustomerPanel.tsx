@@ -8,7 +8,8 @@ import { getLocalizedProductName, getCategoryLabel } from '../utils/faithDate';
 import { 
   ShoppingBag, CheckCircle, Video, FileText, BadgeHelp, Award, ShieldCheck, 
   MapPin, Phone, Mail, User, Percent, CreditCard, ChevronRight, X, Play, RefreshCw, Star, Info,
-  Sparkles, Shirt, Flame, Smartphone, Apple, ArrowRight, ArrowLeft, Quote, Truck, Lock, Leaf, Check
+  Sparkles, Shirt, Flame, Smartphone, Apple, ArrowRight, ArrowLeft, Quote, Truck, Lock, Leaf, Check,
+  Menu, LogOut
 } from 'lucide-react';
 
 export const CustomerPanel: React.FC = () => {
@@ -30,6 +31,7 @@ export const CustomerPanel: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [featuredIdx, setFeaturedIdx] = useState(0);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Product details modal
   const [detailedProduct, setDetailedProduct] = useState<Product | null>(null);
@@ -89,6 +91,28 @@ export const CustomerPanel: React.FC = () => {
     };
     checkProfileSession();
   }, [currentTab, setShowAuthTab]);
+
+  // Support swipe back gesture and physical back button navigation on mobile devices
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (currentTab === 'product-details') {
+        setCurrentTab(previousTab);
+        setDetailedProduct(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [currentTab, previousTab]);
+
+  // Handle direct tab clicks to automatically pop the product-detail history state
+  useEffect(() => {
+    if (currentTab !== 'product-details' && window.history.state && window.history.state.isProductDetail) {
+      window.history.back();
+    }
+  }, [currentTab]);
   
   const [referralCodeInput, setReferralCodeInput] = useState('');
   const [referralError, setReferralError] = useState('');
@@ -283,6 +307,11 @@ export const CustomerPanel: React.FC = () => {
     setCurrentTab('product-details');
     setActiveDetailImg(product.images[0]);
     setIsVideoPlaying(false);
+
+    // Push states to browser history so swipe-back gesture and physical device back button work correctly
+    if (!window.history.state || !window.history.state.isProductDetail) {
+      window.history.pushState({ isProductDetail: true, productId: product.id }, '');
+    }
   };
 
   const handleQuickBuyNow = (product: Product) => {
@@ -293,16 +322,21 @@ export const CustomerPanel: React.FC = () => {
   return (
     <div className="bg-[#FAF9F5] min-h-screen text-slate-800 font-sans pb-16">
       {/* 1. Customer Top Nav */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-40 transition-shadow hover:shadow-sm">
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-40 transition-shadow duration-200 shadow-xs hover:shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentTab('home')}>
-            <span className="bg-emerald-600 text-white p-2.5 rounded-xl font-bold text-xl tracking-tight leading-none shadow-sm shadow-emerald-900/10">দ</span>
-            <div className="flex flex-col">
-              <span className="font-display font-bold text-lg leading-tight tracking-wider text-emerald-800">DADAJAN</span>
-              <span className="text-[10px] font-medium text-amber-700 tracking-widest uppercase">Faith-Centered Commerce</span>
+          
+          {/* Logo Brand */}
+          <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentTab('home'); setIsMobileMenuOpen(false); }}>
+            <span className="bg-emerald-600 text-white p-2.5 rounded-xl font-bold text-lg md:text-xl tracking-tight leading-none shadow-sm shadow-emerald-900/15">দ</span>
+            <div className="flex flex-col animate-fade-in">
+              <span className="font-display font-bold text-base md:text-lg leading-none tracking-wider text-emerald-800">DADAJAN</span>
+              <span className="text-[9px] md:text-[10px] font-medium text-amber-700 tracking-widest uppercase mt-0.5 leading-tight">
+                {lang === 'bn' ? 'সুন্নাহ ও হালাল কমার্স' : 'Faith-Centered Commerce'}
+              </span>
             </div>
           </div>
 
+          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
             <button 
               id="customer-nav-home"
@@ -336,59 +370,210 @@ export const CustomerPanel: React.FC = () => {
             )}
           </nav>
 
-          <div className="flex items-center gap-3">
-            {/* User Login/Profile Action */}
-            {currentCustomer ? (
-              <div className="flex items-center gap-2">
+          {/* Right Controls Area */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Desktop-only Profile Information */}
+            <div className="hidden md:flex items-center gap-2">
+              {currentCustomer ? (
+                <>
+                  <button 
+                    id="btn-customer-profile-nav"
+                    onClick={() => setCurrentTab('profile')}
+                    className={`flex flex-col text-right hover:text-emerald-700 transition-colors cursor-pointer mr-1.5 ${currentTab === 'profile' ? 'text-emerald-700' : 'text-stone-800'}`}
+                  >
+                    <span className="text-xs font-bold leading-tight flex items-center gap-1">⚙️ {currentCustomer.name}</span>
+                    <span className="text-[9px] font-mono text-emerald-700 font-bold uppercase tracking-wider">{currentCustomer.area}</span>
+                  </button>
+                  <button 
+                    id="btn-customer-logout"
+                    onClick={async () => { await logout(); setCurrentTab('home'); }}
+                    className="bg-stone-100 hover:bg-stone-200 text-stone-700 font-extrabold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border border-stone-200"
+                  >
+                    {lang === 'bn' ? 'লগআউট' : 'Logout'}
+                  </button>
+                </>
+              ) : (
                 <button 
-                  id="btn-customer-profile-nav"
-                  onClick={() => setCurrentTab('profile')}
-                  className={`flex flex-col text-right hover:text-emerald-700 transition-colors cursor-pointer mr-1.5 ${currentTab === 'profile' ? 'text-emerald-700' : 'text-stone-850'}`}
+                  id="btn-customer-login-trigger"
+                  onClick={() => setShowAuthTab('customer')}
+                  className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
                 >
-                  <span className="text-xs font-bold leading-tight flex items-center gap-1">⚙️ {currentCustomer.name}</span>
-                  <span className="text-[9px] font-mono text-emerald-705 font-bold uppercase tracking-wider">{currentCustomer.area}</span>
+                  <User className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>{lang === 'bn' ? 'প্রবেশ' : 'Sign In'}</span>
                 </button>
-                <button 
-                  id="btn-customer-logout"
-                  onClick={async () => { await logout(); setCurrentTab('home'); }}
-                  className="bg-stone-100 hover:bg-stone-200 text-stone-700 font-extrabold text-[10px] sm:text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border border-stone-200"
-                >
-                  {lang === 'bn' ? 'লগআউট' : 'Logout'}
-                </button>
-              </div>
-            ) : (
-              <button 
-                id="btn-customer-login-trigger"
-                onClick={() => setShowAuthTab('customer')}
-                className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-extrabold text-xs px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
-              >
-                <User className="w-3.5 h-3.5 text-emerald-700" />
-                <span>{lang === 'bn' ? 'প্রবেশ' : 'Sign In'}</span>
-              </button>
-            )}
+              )}
+            </div>
 
+            {/* Persistent Cart Icon */}
             <button 
               id="btn-customer-cart-icon"
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-750 rounded-full transition-all flex items-center justify-center cursor-pointer"
+              className="relative p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-750 rounded-full transition-all flex items-center justify-center cursor-pointer-action"
+              title="Open Bag"
             >
-              <ShoppingBag className="w-5 h-5" />
+              <ShoppingBag className="w-5 h-5 text-emerald-800" />
               {cart.length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-amber-600 text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold font-mono shadow-sm">
                   {cart.reduce((a, b) => a + b.quantity, 0)}
                 </span>
               )}
             </button>
+
+            {/* Desktop-only Shop Button */}
             <button 
               id="btn-nav-buy-direct"
               onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-xs sm:text-sm px-4.5 py-2.5 rounded-lg transition-all shadow-sm flex items-center gap-1 cursor-pointer font-bold"
+              className="hidden md:flex bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-sm px-4.5 py-2.5 rounded-lg transition-all shadow-sm items-center gap-1 cursor-pointer font-bold"
             >
               {lang === 'bn' ? 'বাজার করুন' : 'Shop Now'}
             </button>
+
+            {/* Mobile-only Hamburger Menu trigger */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 text-emerald-800 hover:bg-emerald-50 border border-stone-100 rounded-xl transition-colors cursor-pointer flex items-center justify-center"
+              aria-label="Toggle Navigation List"
+            >
+              {isMobileMenuOpen ? <X className="w-6 h-6 animate-spin-once" /> : <Menu className="w-6 h-6" />}
+            </button>
+
           </div>
         </div>
       </header>
+
+      {/* Elegant Mobile Navigation Drawer Overlay */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex justify-end">
+          {/* Drawer backdrop overlay element */}
+          <div className="absolute inset-0 transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
+          
+          {/* Sliding drawer list */}
+          <div className="relative w-4/5 max-w-xs bg-white h-full shadow-2xl flex flex-col justify-between p-6 overflow-y-auto border-l border-stone-200">
+            <div className="space-y-6">
+              {/* Drawer Header Brand */}
+              <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+                <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => { setCurrentTab('home'); setIsMobileMenuOpen(false); }}>
+                  <span className="bg-emerald-600 text-white p-2 rounded-lg font-bold text-base leading-none">দ</span>
+                  <span className="font-display font-bold text-md tracking-wider text-emerald-800">DADAJAN</span>
+                </div>
+                <button 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1.5 hover:bg-stone-50 text-stone-500 hover:text-stone-700 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Drawer User Card */}
+              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/50 text-left">
+                {currentCustomer ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2.5 bg-emerald-605 bg-emerald-600 text-white rounded-full">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-stone-900 text-sm leading-tight">{currentCustomer.name}</p>
+                        <p className="text-[10px] text-stone-450 font-mono mt-0.5">{currentCustomer.mobile}</p>
+                      </div>
+                    </div>
+                    <div className="pt-2.5 border-t border-emerald-955/10 border-emerald-900/10 flex items-center justify-between text-[11px] font-medium">
+                      <span className="font-extrabold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md">
+                        {currentCustomer.area}
+                      </span>
+                      <button 
+                        onClick={() => { setCurrentTab('profile'); setIsMobileMenuOpen(false); }}
+                        className="text-emerald-700 hover:text-emerald-850 hover:underline font-bold"
+                      >
+                        {lang === 'bn' ? 'আমার প্রোফাইল ⚙️' : 'My Profile ⚙️'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 py-2 text-center">
+                    <p className="text-xs text-stone-500 leading-relaxed">
+                      {lang === 'bn' 
+                        ? 'আপনার অ্যাকাউন্ট সুসংগঠিত করতে এবং দ্রুত অর্ডার ট্র্যাকিং সেবা পেতে প্রবেশ করুন।' 
+                        : 'Sign in to review details, tracking, and manage your personal details seamlessly.'}
+                    </p>
+                    <button 
+                      onClick={() => { setShowAuthTab('customer'); setIsMobileMenuOpen(false); }}
+                      className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-extrabold rounded-xl transition-all shadow-sm cursor-pointer"
+                    >
+                      {lang === 'bn' ? 'অ্যাকাউন্টে প্রবেশ করুন ✅' : 'Sign In To Account ✅'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Drawer links */}
+              <div className="flex flex-col gap-1 text-left">
+                <span className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest pl-2 mb-2 block">
+                  {lang === 'bn' ? 'মেনু ডিরেক্টরি' : 'NAVIGATION DIRECTORY'}
+                </span>
+                
+                <button 
+                  onClick={() => { setCurrentTab('home'); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
+                  className={`w-full py-3 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${currentTab === 'home' ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`}
+                >
+                  <span>{lang === 'bn' ? 'হোম পেইজ' : 'Home'}</span>
+                  <ChevronRight className={`w-4 h-4 mr-1 ${currentTab === 'home' ? 'text-emerald-600' : 'text-stone-300'}`} />
+                </button>
+
+                <button 
+                  onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
+                  className={`w-full py-3 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${currentTab === 'shop' ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`}
+                >
+                  <span>{lang === 'bn' ? 'সকল পণ্য সংগ্রহ' : 'Our Collection'}</span>
+                  <ChevronRight className={`w-4 h-4 mr-1 ${currentTab === 'shop' ? 'text-emerald-600' : 'text-stone-300'}`} />
+                </button>
+
+                <button 
+                  onClick={() => { setCurrentTab('tracking'); setIsMobileMenuOpen(false); }}
+                  className={`w-full py-3 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${currentTab === 'tracking' ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`}
+                >
+                  <span>{lang === 'bn' ? 'অর্ডার ট্র্যাক ও ট্র্যাকিং' : 'Order Tracking'}</span>
+                  <ChevronRight className={`w-4 h-4 mr-1 ${currentTab === 'tracking' ? 'text-emerald-600' : 'text-stone-300'}`} />
+                </button>
+
+                {currentCustomer && (
+                  <button 
+                    onClick={() => { setCurrentTab('profile'); setIsMobileMenuOpen(false); }}
+                    className={`w-full py-3 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${currentTab === 'profile' ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`}
+                  >
+                    <span>{lang === 'bn' ? 'আমার প্রোফাইল' : 'My Profile'}</span>
+                    <ChevronRight className={`w-4 h-4 mr-1 ${currentTab === 'profile' ? 'text-emerald-600' : 'text-stone-300'}`} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom buttons of Mobile drawer */}
+            <div className="pt-6 border-t border-stone-100 space-y-3.5 text-center">
+              <button 
+                onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
+                className="w-full py-3.5 bg-amber-400 hover:bg-amber-300 text-stone-900 font-extrabold rounded-xl text-xs uppercase tracking-wider shadow-md transition-all text-center block cursor-pointer"
+              >
+                🛒 {lang === 'bn' ? 'সরাসরি বাজার করুন' : 'Shop Collections'}
+              </button>
+              
+              {currentCustomer && (
+                <button 
+                  onClick={async () => { await logout(); setCurrentTab('home'); setIsMobileMenuOpen(false); }}
+                  className="w-full py-2.5 bg-stone-50 hover:bg-stone-100 text-stone-600 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 border border-stone-200 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-stone-500" />
+                  <span>{lang === 'bn' ? 'লগআউট করুন' : 'Logout Account'}</span>
+                </button>
+              )}
+
+              <p className="text-[10px] text-stone-400 font-medium">
+                © {new Date().getFullYear()} DADAJAN Marketplace
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. PREMIUM HOMEPAGE DEFINITION */}
       {currentTab === 'home' && (
@@ -640,46 +825,46 @@ export const CustomerPanel: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
               {finalFeaturedGrid.map((product) => {
                 const saving = 10;
                 const finalPrice = Math.round(product.price * (1 - saving / 100));
                 return (
                   <div key={product.id} className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full group relative">
                     <div className="relative">
-                      <div className="w-full h-48 bg-stone-50 overflow-hidden relative" onClick={() => openProductDetails(product)}>
+                      <div className="w-full h-32 sm:h-48 bg-stone-50 overflow-hidden relative" onClick={() => openProductDetails(product)}>
                         <img 
                           src={product.images[0]} 
                           alt="" 
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-103 cursor-pointer"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
+                        <div className="absolute top-2 left-2 flex flex-col gap-1">
                           {product.certificationStatus.imamVerified && (
-                            <span className="inline-flex items-center gap-0.5 bg-emerald-700/90 backdrop-blur-md text-white font-bold text-[8px] px-2 py-0.5 rounded shadow-sm">
-                              ✓ {lang === 'bn' ? 'ইয়াশিন ইমাম প্রত্যায়িত' : 'Imam Verified'}
+                            <span className="inline-flex items-center gap-0.5 bg-emerald-700/90 backdrop-blur-md text-white font-bold text-[8px] px-1.5 py-0.5 rounded shadow-sm">
+                              ✓ {lang === 'bn' ? 'ইমাম প্রত্যায়িত' : 'Imam Verified'}
                             </span>
                           )}
                           {product.certificationStatus.labTested && (
-                            <span className="inline-flex items-center gap-0.5 bg-amber-600/90 backdrop-blur-md text-white font-bold text-[8px] px-2 py-0.5 rounded shadow-sm">
+                            <span className="inline-flex items-center gap-0.5 bg-amber-600/90 backdrop-blur-md text-white font-bold text-[8px] px-1.5 py-0.5 rounded shadow-sm">
                               ✓ {lang === 'bn' ? 'ল্যাব পরীক্ষিত' : 'Lab Tested'}
                             </span>
                           )}
                         </div>
 
-                        <span className="absolute top-2.5 right-2.5 bg-red-500 text-white font-bold text-[9px] px-1.5 py-0.5 rounded">
+                        <span className="absolute top-2 right-2 bg-red-500 text-white font-bold text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded">
                           -{saving}%
                         </span>
                       </div>
                       
-                      <div className="p-4 space-y-2 text-left">
-                        <span className="text-[10px] font-bold uppercase text-amber-700 tracking-wider font-mono">
+                      <div className="p-3 sm:p-4 space-y-1.5 sm:space-y-2 text-left">
+                        <span className="text-[9px] sm:text-[10px] font-bold uppercase text-amber-700 tracking-wider font-mono">
                           {getCategoryLabel(product.category, lang)}
                         </span>
 
                         <h4 
                           onClick={() => openProductDetails(product)}
-                          className="font-bold text-stone-900 text-sm leading-snug cursor-pointer hover:text-emerald-700 transition-colors line-clamp-2 min-h-[40px]"
+                          className="font-bold text-stone-900 text-xs sm:text-sm leading-snug cursor-pointer hover:text-emerald-700 transition-colors line-clamp-2 min-h-[36px] sm:min-h-[40px]"
                         >
                           {getLocalizedProductName(product.name, lang)}
                         </h4>
@@ -687,30 +872,30 @@ export const CustomerPanel: React.FC = () => {
                         <div className="flex items-center gap-1" title={`${product.rating}/5 Rating`}>
                           <div className="flex text-amber-400">
                             {[...Array(5)].map((_, i) => (
-                              <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <Star key={i} className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-amber-400 text-amber-400" />
                             ))}
                           </div>
-                          <span className="text-[10px] font-mono text-stone-400 font-bold">({product.reviewsCount})</span>
+                          <span className="text-[9px] sm:text-[10px] font-mono text-stone-400 font-bold">({product.reviewsCount})</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="p-4 pt-0 text-left space-y-3">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="font-mono text-base font-extrabold text-stone-900">{setPriceFormat(finalPrice)}</span>
-                        <span className="font-mono text-xs text-stone-400 line-through">{setPriceFormat(product.price)}</span>
+                    <div className="p-3 sm:p-4 pt-0 text-left space-y-2.5 sm:space-y-3">
+                      <div className="flex flex-wrap items-baseline gap-1 sm:gap-1.5">
+                        <span className="font-mono text-sm sm:text-base font-extrabold text-stone-900">{setPriceFormat(finalPrice)}</span>
+                        <span className="font-mono text-[10px] sm:text-xs text-stone-400 line-through">{setPriceFormat(product.price)}</span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                         <button 
                           onClick={() => openProductDetails(product)}
-                          className="py-1.5 px-2 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                          className="py-1.5 px-1 sm:px-2 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 font-bold rounded-lg text-[10px] sm:text-xs transition-colors cursor-pointer text-center"
                         >
                           {lang === 'bn' ? 'বিস্তারিত' : 'Detail'}
                         </button>
                         <button 
                           onClick={() => addToCart(product, 1, true)}
-                          className="py-1.5 px-2 bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
+                          className="py-1.5 px-1 sm:px-2 bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[10px] sm:text-xs transition-colors shadow-sm cursor-pointer text-center"
                         >
                           🛍️ {lang === 'bn' ? 'যুক্ত করুন' : 'Add'}
                         </button>
@@ -735,12 +920,12 @@ export const CustomerPanel: React.FC = () => {
                 <div className="h-0.5 w-16 bg-amber-400 mx-auto mt-4"></div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 {finalBestSellers.map((product) => {
                   return (
                     <div key={product.id} className="bg-white/5 rounded-2xl border border-emerald-800/60 overflow-hidden shadow-md flex flex-col justify-between h-full group">
                       <div className="relative">
-                        <div className="w-full h-44 overflow-hidden" onClick={() => openProductDetails(product)}>
+                        <div className="w-full h-32 sm:h-44 overflow-hidden" onClick={() => openProductDetails(product)}>
                           <img 
                             src={product.images[0]} 
                             alt="" 
@@ -748,39 +933,39 @@ export const CustomerPanel: React.FC = () => {
                             referrerPolicy="no-referrer"
                           />
                         </div>
-                        <div className="p-4 space-y-2 text-left">
+                        <div className="p-3 sm:p-4 space-y-1.5 sm:space-y-2 text-left">
                           <span className="text-[9px] font-bold text-amber-350 font-mono tracking-widest uppercase block">
                             {getCategoryLabel(product.category, lang)}
                           </span>
                           <h4 
                             onClick={() => openProductDetails(product)}
-                            className="font-bold text-white text-sm cursor-pointer hover:text-amber-300 transition-colors line-clamp-2 min-h-[40px]"
+                            className="font-bold text-white text-xs sm:text-sm cursor-pointer hover:text-amber-300 transition-colors line-clamp-2 min-h-[36px] sm:min-h-[40px]"
                           >
                             {getLocalizedProductName(product.name, lang)}
                           </h4>
-                          <div className="flex items-center gap-1">
-                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                          <div className="flex items-center gap-0.5 sm:gap-1">
+                            <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 fill-amber-300 text-amber-300" />
+                            <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 fill-amber-300 text-amber-300" />
+                            <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 fill-amber-300 text-amber-300" />
+                            <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 fill-amber-300 text-amber-300" />
+                            <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 fill-amber-300 text-amber-300" />
                             <span className="text-[9px] text-emerald-100 font-mono">({product.reviewsCount})</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-4 pt-0 text-left space-y-3">
-                        <span className="font-mono text-base font-extrabold text-amber-300 block">{setPriceFormat(product.price)}</span>
-                        <div className="grid grid-cols-2 gap-2">
+                      <div className="p-3 sm:p-4 pt-0 text-left space-y-2.5 sm:space-y-3">
+                        <span className="font-mono text-sm sm:text-base font-extrabold text-amber-300 block">{setPriceFormat(product.price)}</span>
+                        <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                           <button 
                             onClick={() => openProductDetails(product)}
-                            className="py-1.5 px-2 bg-emerald-950/40 hover:bg-emerald-950 border border-emerald-800/85 text-emerald-100 font-bold rounded-lg text-xs transition-colors cursor-pointer animate-none"
+                            className="py-1.5 px-1 sm:px-2 bg-emerald-950/40 hover:bg-emerald-950 border border-emerald-800/85 text-emerald-100 font-bold rounded-lg text-[10px] sm:text-xs transition-colors cursor-pointer animate-none text-center"
                           >
                             {lang === 'bn' ? 'বিস্তারিত' : 'Detail'}
                           </button>
                           <button 
                             onClick={() => addToCart(product, 1, true)}
-                            className="py-1.5 px-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-lg text-xs transition-colors cursor-pointer shadow-sm"
+                            className="py-1.5 px-1 sm:px-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-lg text-[10px] sm:text-xs transition-colors cursor-pointer shadow-sm text-center"
                           >
                             🛍️ {lang === 'bn' ? 'যুক্ত করুন' : 'Add'}
                           </button>
@@ -805,53 +990,53 @@ export const CustomerPanel: React.FC = () => {
               <div className="h-0.5 w-16 bg-emerald-600 mx-auto mt-4"></div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
               {finalNewArrivals.map((product) => {
                 return (
                   <div key={product.id} className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full group">
                     <div className="relative">
-                      <div className="w-full h-44 bg-stone-50 overflow-hidden relative" onClick={() => openProductDetails(product)}>
+                      <div className="w-full h-32 sm:h-44 bg-stone-50 overflow-hidden relative" onClick={() => openProductDetails(product)}>
                         <img 
                           src={product.images[0]} 
                           alt="" 
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-103 cursor-pointer animate-none"
                           referrerPolicy="no-referrer"
                         />
-                        <span className="absolute top-2.5 left-2.5 bg-emerald-800/90 text-white font-bold text-[8px] uppercase tracking-wider px-2 py-0.5 rounded shadow-xs">
+                        <span className="absolute top-2 left-2 bg-emerald-800/90 text-white font-bold text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded shadow-xs">
                           {lang === 'bn' ? 'নতুন' : 'New'}
                         </span>
                       </div>
-                      <div className="p-4 space-y-2 text-left">
-                        <span className="text-[10px] font-bold text-amber-700 font-mono uppercase tracking-wider block">
+                      <div className="p-3 sm:p-4 space-y-1.5 sm:space-y-2 text-left">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-amber-700 font-mono uppercase tracking-wider block">
                           {getCategoryLabel(product.category, lang)}
                         </span>
                         <h4 
                           onClick={() => openProductDetails(product)}
-                          className="font-bold text-stone-900 text-sm cursor-pointer hover:text-emerald-700 transition-colors line-clamp-2 min-h-[40px]"
+                          className="font-bold text-stone-900 text-xs sm:text-sm cursor-pointer hover:text-emerald-700 transition-colors line-clamp-2 min-h-[36px] sm:min-h-[40px]"
                         >
                           {getLocalizedProductName(product.name, lang)}
                         </h4>
                         <div className="flex items-center gap-0.5 text-amber-400">
                           {[...Array(5)].map((_, i) => (
-                            <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                            <Star key={i} className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 fill-amber-400 text-amber-400" />
                           ))}
                           <span className="text-[9px] text-stone-400 font-bold ml-1">({product.reviewsCount})</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="p-4 pt-0 text-left space-y-3">
-                      <span className="font-mono text-base font-extrabold text-stone-900 block">{setPriceFormat(product.price)}</span>
-                      <div className="grid grid-cols-2 gap-2">
+                    <div className="p-3 sm:p-4 pt-0 text-left space-y-2.5 sm:space-y-3">
+                      <span className="font-mono text-sm sm:text-base font-extrabold text-stone-900 block">{setPriceFormat(product.price)}</span>
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                         <button 
                           onClick={() => openProductDetails(product)}
-                          className="py-1.5 px-2 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                          className="py-1.5 px-1 sm:px-2 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 font-bold rounded-lg text-[10px] sm:text-xs transition-colors cursor-pointer text-center"
                         >
                           {lang === 'bn' ? 'বিস্তারিত' : 'Detail'}
                         </button>
                         <button 
                           onClick={() => addToCart(product, 1, true)}
-                          className="py-1.5 px-2 bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs transition-colors cursor-pointer shadow-sm"
+                          className="py-1.5 px-1 sm:px-2 bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[10px] sm:text-xs transition-colors cursor-pointer shadow-sm text-center"
                         >
                           🛍️ {lang === 'bn' ? 'যুক্ত করুন' : 'Add'}
                         </button>
@@ -1073,7 +1258,6 @@ export const CustomerPanel: React.FC = () => {
       {/* 3. Product Category Filters & Product List (Shop tab shows this exclusively now) */}
       {currentTab === 'shop' && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 bg-transparent">
-        {currentTab === 'shop' && (
           <div className="mb-6 pt-4">
             <h1 className="text-2xl font-display font-extrabold text-stone-900 tracking-tight">
               {lang === 'bn' ? 'দাদাজান সামগ্রী বুকশেলফ ও স্টোর' : 'DadaJan Premium Products'}
@@ -1082,128 +1266,129 @@ export const CustomerPanel: React.FC = () => {
               {lang === 'bn' ? 'সরাসরি প্রডিউসার থেকে সংগৃহীত খাঁটি সুনাহ খাদ্য ও সামগ্রী।' : 'Ethical, lab-tested foods, Sunnah clothes, and prayer mats.'}
             </p>
           </div>
-        )}
 
-        {/* Categories Tabs & Search */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none shrink-0">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                id={`cat-tab-${cat.replace(/\s+/g, '-')}`}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
-                  selectedCategory === cat 
-                    ? 'bg-emerald-800 text-white shadow-sm' 
-                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-                }`}
-              >
-                {getCategoryLabel(cat, lang)}
-              </button>
-            ))}
+          {/* Categories Tabs & Search */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none shrink-0">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  id={`cat-tab-${cat.replace(/\s+/g, '-')}`}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                    selectedCategory === cat 
+                      ? 'bg-emerald-800 text-white shadow-sm' 
+                      : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                  }`}
+                >
+                  {getCategoryLabel(cat, lang)}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full md:max-w-xs">
+              <input
+                type="text"
+                id="input-customer-product-search"
+                placeholder={lang === 'bn' ? 'মধু, ঘি, আতর খুঁজুন...' : 'Search pure food, attar...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-700 focus:border-emerald-700 placeholder-stone-400 font-medium"
+              />
+            </div>
           </div>
 
-          <div className="relative w-full md:max-w-xs">
-            <input
-              type="text"
-              id="input-customer-product-search"
-              placeholder={lang === 'bn' ? 'মধু, ঘি, আতর খুঁজুন...' : 'Search pure food, attar...'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-700 focus:border-emerald-700 placeholder-stone-400 font-medium"
-            />
-          </div>
+          {/* Product Grid */}
+          {filteredProducts.length === 0 ? (
+            <div className="bg-white border border-stone-200/60 rounded-2xl py-12 text-center p-4">
+              <p className="text-stone-500 text-sm font-medium">
+                {lang === 'bn' ? 'দুঃখিত, কোনো পণ্য পাওয়া যায়নি।' : 'No products found match your search query.'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+              {filteredProducts.map((p) => (
+                <div 
+                  key={p.id} 
+                  className="bg-white rounded-2xl border border-stone-200/50 overflow-hidden shadow-xs hover:shadow-md transition-all group flex flex-col justify-between"
+                >
+                  {/* Product Media Area */}
+                  <div className="relative bg-stone-50 h-32 sm:h-48 overflow-hidden shrink-0 cursor-pointer" onClick={() => openProductDetails(p)}>
+                    <img
+                      src={p.images[0]}
+                      alt={getLocalizedProductName(p.name, lang)}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+                    />
+                    {/* Badges */}
+                    <div className="absolute top-2 left-2 flex flex-col gap-1">
+                      {p.certificationStatus.imamVerified && (
+                        <span className="bg-emerald-700/90 text-white font-semibold text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 sm:gap-1 backdrop-blur-xs tracking-wide">
+                          <Award className="w-2.5 h-2.5 text-amber-300 shrink-0" />
+                          <span className="hidden xs:inline">{lang === 'bn' ? 'ইমাম অনুমোদিত' : 'Imam Verified'}</span>
+                          <span className="xs:hidden">{lang === 'bn' ? 'ইমাম' : 'Imam'}</span>
+                        </span>
+                      )}
+                      {p.certificationStatus.labTested && (
+                        <span className="bg-stone-900/80 text-emerald-450 font-bold text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 sm:gap-1 backdrop-blur-xs tracking-wide">
+                          <ShieldCheck className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                          <span className="hidden xs:inline">{lang === 'bn' ? 'ল্যাব সার্টিফাইড' : 'Lab Verified'}</span>
+                          <span className="xs:hidden">{lang === 'bn' ? 'ল্যাব' : 'Lab'}</span>
+                        </span>
+                      )}
+                    </div>
+                    {p.stockQty <= 5 && (
+                      <span className="absolute top-2 right-2 bg-red-600 text-white text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono">
+                        {lang === 'bn' ? 'সীমিত' : 'Low'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-amber-700">{getCategoryLabel(p.category, lang)}</span>
+                      <h3 
+                        onClick={() => openProductDetails(p)}
+                        className="font-display font-extrabold text-xs sm:text-sm text-stone-900 hover:text-emerald-850 cursor-pointer mt-1 mb-1.5 line-clamp-2 h-9 sm:h-10 leading-snug"
+                      >
+                        {getLocalizedProductName(p.name, lang)}
+                      </h3>
+                      <div className="text-[9px] sm:text-[11px] text-stone-500 mb-2 sm:mb-4 line-clamp-1">
+                        📍 {p.origin}
+                      </div>
+                    </div>
+
+                    {/* Actions & Price */}
+                    <div>
+                      <div className="flex items-baseline justify-between mb-2.5 sm:mb-3 border-t border-stone-100 pt-2.5 sm:pt-3">
+                        <span className="text-[10px] sm:text-xs font-medium text-stone-400">{lang === 'bn' ? 'মূল্য:' : 'Price:'}</span>
+                        <span className="text-sm sm:text-base font-extrabold text-slate-900">{setPriceFormat(p.price)}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                        <button
+                          id={`btn-cart-${p.id}`}
+                          onClick={() => addToCart(p)}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] sm:text-[11px] font-bold py-2 px-1 rounded-lg transition-colors cursor-pointer border border-emerald-150 text-center"
+                        >
+                          {lang === 'bn' ? 'কার্টে যোগ' : 'Add Card'}
+                        </button>
+                        <button
+                          id={`btn-buy-${p.id}`}
+                          onClick={() => handleQuickBuyNow(p)}
+                          className="bg-emerald-700 hover:bg-emerald-800 text-white text-[10px] sm:text-[11px] font-bold py-2 px-1 rounded-lg transition-all cursor-pointer shadow-xs text-center"
+                        >
+                          {lang === 'bn' ? 'কিনুন' : 'Buy Now'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-
-        {/* Product Grid */}
-        {filteredProducts.length === 0 ? (
-          <div className="bg-white border border-stone-200/60 rounded-2xl py-12 text-center p-4">
-            <p className="text-stone-500 text-sm font-medium">
-              {lang === 'bn' ? 'দুঃখিত, কোনো পণ্য পাওয়া যায়নি।' : 'No products found match your search query.'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {filteredProducts.map((p) => (
-              <div 
-                key={p.id} 
-                className="bg-white rounded-2xl border border-stone-200/50 overflow-hidden shadow-xs hover:shadow-md transition-all group flex flex-col justify-between"
-              >
-                {/* Product Media Area */}
-                <div className="relative bg-stone-50 h-48 overflow-hidden shrink-0 cursor-pointer" onClick={() => openProductDetails(p)}>
-                  <img
-                    src={p.images[0]}
-                    alt={getLocalizedProductName(p.name, lang)}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
-                  />
-                  {/* Badges */}
-                  <div className="absolute top-2 left-2 flex flex-col gap-1.5">
-                    {p.certificationStatus.imamVerified && (
-                      <span className="bg-emerald-700/90 text-white font-semibold text-[9px] px-2 py-0.5 rounded-lg flex items-center gap-1 backdrop-blur-xs tracking-wide">
-                        <Award className="w-3 h-3 text-amber-300 shrink-0" />
-                        {lang === 'bn' ? 'ইমাম সুপারিশকৃত' : 'Imam Verified'}
-                      </span>
-                    )}
-                    {p.certificationStatus.labTested && (
-                      <span className="bg-stone-900/80 text-emerald-450 font-bold text-[9px] px-2 py-0.5 rounded-lg flex items-center gap-1 backdrop-blur-xs tracking-wide">
-                        <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
-                        {lang === 'bn' ? 'ল্যাব সার্টিফাইড' : 'Lab Verified'}
-                      </span>
-                    )}
-                  </div>
-                  {p.stockQty <= 5 && (
-                    <span className="absolute top-2 right-2 bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase font-mono">
-                      {lang === 'bn' ? 'সীমিত স্টক' : 'Low Stock'}
-                    </span>
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="p-4 flex-1 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">{getCategoryLabel(p.category, lang)}</span>
-                    <h3 
-                      onClick={() => openProductDetails(p)}
-                      className="font-display font-extrabold text-sm text-stone-900 hover:text-emerald-850 cursor-pointer mt-1 mb-2 line-clamp-2 h-10 leading-snug"
-                    >
-                      {getLocalizedProductName(p.name, lang)}
-                    </h3>
-                    <div className="text-[11px] text-stone-500 mb-4 line-clamp-1">
-                      📍 {p.origin}
-                    </div>
-                  </div>
-
-                  {/* Actions & Price */}
-                  <div>
-                    <div className="flex items-baseline justify-between mb-3 border-t border-stone-100 pt-3">
-                      <span className="text-xs font-medium text-stone-400">{lang === 'bn' ? 'মূল্য:' : 'Price:'}</span>
-                      <span className="text-base font-extrabold text-slate-900">{setPriceFormat(p.price)}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        id={`btn-cart-${p.id}`}
-                        onClick={() => addToCart(p)}
-                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold py-2 px-1 rounded-lg transition-colors cursor-pointer border border-emerald-150 text-center"
-                      >
-                        {lang === 'bn' ? 'কার্টে যোগ করুন' : 'Add Card'}
-                      </button>
-                      <button
-                        id={`btn-buy-${p.id}`}
-                        onClick={() => handleQuickBuyNow(p)}
-                        className="bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold py-2 px-1 rounded-lg transition-all cursor-pointer shadow-xs text-center"
-                      >
-                        {lang === 'bn' ? 'সরাসরি কিনুন' : 'Buy Now'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
       )}
 
       {/* 4. Order History / Order Tracker UI */}
@@ -1338,8 +1523,8 @@ export const CustomerPanel: React.FC = () => {
         <ProductDetailsPage
           product={detailedProduct}
           onBack={() => {
-            setCurrentTab(previousTab);
-            setDetailedProduct(null);
+            // Trigger browser's back navigation to pop the history state and close details via the popstate listener
+            window.history.back();
           }}
           addToCart={(prod, qty, openCart) => addToCart(prod, qty, openCart)}
           handleQuickBuyNow={handleQuickBuyNow}
