@@ -7,7 +7,8 @@ import { supabase } from '../supabaseClient';
 import { getLocalizedProductName, getCategoryLabel } from '../utils/faithDate';
 import { 
   ShoppingBag, CheckCircle, Video, FileText, BadgeHelp, Award, ShieldCheck, 
-  MapPin, Phone, Mail, User, Percent, CreditCard, ChevronRight, X, Play, RefreshCw, Star, Info
+  MapPin, Phone, Mail, User, Percent, CreditCard, ChevronRight, X, Play, RefreshCw, Star, Info,
+  Sparkles, Shirt, Flame, Smartphone, Apple, ArrowRight, ArrowLeft, Quote, Truck, Lock, Leaf, Check
 } from 'lucide-react';
 
 export const CustomerPanel: React.FC = () => {
@@ -28,6 +29,7 @@ export const CustomerPanel: React.FC = () => {
   const [previousTab, setPreviousTab] = useState<'home' | 'shop' | 'tracking' | 'profile'>('home');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [featuredIdx, setFeaturedIdx] = useState(0);
   
   // Product details modal
   const [detailedProduct, setDetailedProduct] = useState<Product | null>(null);
@@ -120,10 +122,34 @@ export const CustomerPanel: React.FC = () => {
 
   const categories = [
     'All',
-    'Pure Food Collection',
-    'Sunnah & Lifestyle',
-    'Special Collections'
+    'Dry Food',
+    'Beauty & Cosmetics',
+    'Fashion',
+    'Perfume',
+    'Gadgets & Electronics',
+    'Spices'
   ];
+
+  // Homepage selective lists with fallbacks
+  const homeFeaturedSliderItems = products.filter(p => 
+    ['prod-1', 'prod-2', 'prod-gadget-tasbeeh', 'prod-spice-saffron'].includes(p.id)
+  );
+  const finalSliderItems = homeFeaturedSliderItems.length > 0 ? homeFeaturedSliderItems : products.slice(0, 4);
+
+  const homeFeaturedGrid = products.filter(p => 
+    ['prod-1', 'prod-beauty-seedoil', 'prod-beauty-soap', 'prod-gadget-tasbeeh'].includes(p.id)
+  );
+  const finalFeaturedGrid = homeFeaturedGrid.length > 0 ? homeFeaturedGrid : products.slice(0, 4);
+
+  const homeBestSellers = products.filter(p => 
+    ['prod-2', 'prod-3', 'prod-spice-saffron', 'prod-6'].includes(p.id)
+  );
+  const finalBestSellers = homeBestSellers.length > 0 ? homeBestSellers : products.slice(Math.max(0, products.length - 4), products.length);
+
+  const homeNewArrivals = products.filter(p => 
+    ['prod-fashion-panjabi', 'prod-attar-wo', 'prod-gadget-trimmer', 'prod-spice-cinnamon'].includes(p.id)
+  );
+  const finalNewArrivals = homeNewArrivals.length > 0 ? homeNewArrivals : products.slice(0, Math.min(4, products.length));
 
   // Filter products
   const filteredProducts = products.filter(p => {
@@ -348,7 +374,7 @@ export const CustomerPanel: React.FC = () => {
             >
               <ShoppingBag className="w-5 h-5" />
               {cart.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-amber-653 text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold font-mono shadow-sm">
+                <span className="absolute -top-1 -right-1 bg-amber-600 text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold font-mono shadow-sm">
                   {cart.reduce((a, b) => a + b.quantity, 0)}
                 </span>
               )}
@@ -364,140 +390,688 @@ export const CustomerPanel: React.FC = () => {
         </div>
       </header>
 
-      {/* 2. Sourcing Transparency Hero (Home only) */}
+      {/* 2. PREMIUM HOMEPAGE DEFINITION */}
       {currentTab === 'home' && (
-        <>
-          <div className="bg-[#022C22] text-stone-100 py-12 md:py-16 relative overflow-hidden rounded-2xl mx-4 sm:mx-6 lg:mx-8 mt-6">
-            <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-200 via-transparent to-transparent pointer-events-none"></div>
+        <div className="space-y-16 pb-16">
+          {/* SECTION A: HERO BANNER & CTA & SLIDER */}
+          <div className="bg-gradient-to-br from-[#023e2b] via-[#022c22] to-[#011c15] text-white rounded-3xl mx-4 sm:mx-6 lg:mx-8 mt-6 overflow-hidden shadow-xl border border-white/5 relative">
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-amber-500/5 rounded-full filter blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full filter blur-3xl pointer-events-none"></div>
             
-            {/* Elegant Design Decorative Ring */}
-            <div className="absolute right-[-40px] top-[-20px] w-80 h-80 bg-[#059669]/10 rounded-full border-[12px] border-white/5 pointer-events-none"></div>
-
-            <div className="max-w-7xl mx-auto px-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-              <div className="max-w-2xl text-left">
-                <span className="inline-block px-3 py-1 bg-amber-200 text-amber-700 text-xs font-bold rounded-full uppercase tracking-widest mb-4">
-                  {lang === 'bn' ? '🔒 শতভাগ হালাল ও বিশুদ্ধ সরবরাহ' : 'Premium Sourcing'}
-                </span>
+            <div className="max-w-7xl mx-auto px-6 py-12 lg:py-16 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center relative z-10">
+              <div className="lg:col-span-7 space-y-6 text-left">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-300/15 border border-amber-300/25 rounded-full text-amber-300 text-xs font-bold tracking-wider uppercase">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse"></span>
+                  {lang === 'bn' ? '🔒 শতভাগ খাঁটি ও ইমাম দ্বারা প্রত্যায়িত' : '100% Halal Certified Marketplace'}
+                </div>
                 
-                <h1 className="text-3xl md:text-5xl font-serif text-white leading-tight mb-4 italic font-bold">
+                <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold text-white leading-tight">
                   {lang === 'bn' ? (
-                    <>সুন্দরবনের খলিশা মধু<br/>ইমাম ভেরিফাইড ও ল্যাব সার্টিফাইড</>
+                    <>হৃদয়ে বিশ্বাস, টেবিলে সুন্নাহ খাবার ও সামগ্রী</>
                   ) : (
-                    <>Pure Sundarbans Honey<br/>Verified & Lab Tested</>
+                    <>Pure Faith-Centered Lifestyle Accessories</>
                   )}
                 </h1>
                 
-                <p className="text-gray-200 text-sm md:text-base mb-6 max-w-md">
+                <p className="text-emerald-100 text-sm md:text-base max-w-xl leading-relaxed">
                   {lang === 'bn' 
-                    ? 'সম্মানিত ইমাম ও ডিলার অংশীদারদের দ্বারা উৎসস্থলে গিয়ে সরাসরি সংগৃহীত। শতভাগ বিশুদ্ধতার নিশ্চয়তা।'
-                    : 'Trusted by Imams and community partners. Sourced directly from the forest with 100% transparency.'}
+                    ? 'আমাদের প্রতিটি উপহার, মধু, ঘি, আতর ও তসবিহ স্থানীয় আলেম-ওলামাদের উপস্থিতিতে সরাসরি পরীক্ষিত ও ল্যাব সার্টিফাইড। কোনো রকম ভেজালের সংশয়মুক্ত বিশ্বস্ত সরবরাহ।'
+                    : 'Every single jar of honey, organic oil, and sunnah clothing is sourced directly and validated under rigid scholar criteria. Lab certification documents enclosed with every shipment.'}
                 </p>
-                
-                <div className="flex flex-wrap gap-4 mb-6">
+
+                <div className="flex flex-wrap gap-4 pt-2">
                   <button 
                     onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
-                    className="px-8 py-3 bg-amber-200 text-amber-700 font-bold rounded-lg shadow-xl hover:bg-amber-100 transition-all cursor-pointer text-xs uppercase"
+                    className="px-8 py-3.5 bg-amber-450 hover:bg-amber-300 text-[#01221a] font-extrabold rounded-xl shadow-lg hover:shadow-amber-400/10 hover:scale-[1.01] transition-all text-xs uppercase cursor-pointer"
                   >
-                    {lang === 'bn' ? 'এখনই কিনুন 🛒' : 'Shop Now'}
+                    {lang === 'bn' ? 'স্টোর ঘুরে দেখুন 🛒' : 'Start Shopping'}
                   </button>
                   <button 
                     onClick={() => {
-                      // Scroll or change state to show videos
-                      const videoSec = document.getElementById('transparent-sourcing-section');
-                      if (videoSec) videoSec.scrollIntoView({ behavior: 'smooth' });
+                      const reviewerSec = document.getElementById('why-choose-dadajan-sec');
+                      if (reviewerSec) reviewerSec.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="px-8 py-3 border border-white/30 text-white font-bold rounded-lg backdrop-blur-sm hover:bg-white/10 transition-all cursor-pointer text-xs uppercase"
+                    className="px-8 py-3.5 border border-white/25 hover:border-white/55 text-white bg-white/5 hover:bg-white/10 font-bold rounded-xl transition-all text-xs uppercase cursor-pointer"
                   >
-                    {lang === 'bn' ? 'সোর্সিং ভিডিও দেখুন 🎬' : 'Watch Sourcing'}
+                    {lang === 'bn' ? 'আমাদের অনন্য বৈশিষ্ট্য 🛡️' : 'Why Choose Us'}
                   </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 pt-6 text-[11px] text-emerald-200/90 font-medium border-t border-emerald-900/40">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4.5 h-4.5 text-amber-300 shrink-0" />
+                    <span>{lang === 'bn' ? 'কঠোর হালাল গুণমান' : 'Halal Integrity'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 border-l border-emerald-900/30 pl-4">
+                    <Award className="w-4.5 h-4.5 text-amber-300 shrink-0" />
+                    <span>{lang === 'bn' ? 'আলেম-ইমাম যাচাই' : 'Imam Approved'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 border-l border-emerald-900/30 pl-4">
+                    <ShieldCheck className="w-4.5 h-4.5 text-amber-300 shrink-0" />
+                    <span>{lang === 'bn' ? '১০০% রিফান্ড গ্যারান্টি' : '100% Cash Back'}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Sidebar Quick-Stats Trust Flags inside Hero */}
-              <div className="w-full md:w-auto shrink-0 self-stretch flex flex-col justify-center gap-3">
-                <div className="p-4 bg-emerald-50/10 backdrop-blur-md border border-white/10 rounded-2xl flex items-center gap-4 text-left min-w-[260px]">
-                  <div className="p-2 bg-emerald-800 text-white rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-amber-300" />
+              {/* Slider Right Panel */}
+              <div className="lg:col-span-5 relative w-full flex flex-col items-center">
+                <div className="w-full bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-white/10 relative overflow-hidden">
+                  <div className="absolute top-2.5 right-2.5 bg-amber-500 text-emerald-950 font-bold text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full z-10 shadow-sm animate-pulse">
+                    {lang === 'bn' ? 'সেরা অফার' : 'Featured Highlight'}
                   </div>
-                  <div>
-                    <p className="font-bold text-xs text-white uppercase tracking-wider">{lang === 'bn' ? 'ইমাম ভেরিফাইড' : 'Imam Verified'}</p>
-                    <p className="text-[10px] text-gray-300">{lang === 'bn' ? 'স্থানীয় ইমামগণের স্বচক্ষে সার্টিফাইড' : 'Certified by local community Imams'}</p>
-                  </div>
-                </div>
 
-                <div className="p-4 bg-emerald-50/10 backdrop-blur-md border border-white/10 rounded-2xl flex items-center gap-4 text-left min-w-[260px]">
-                  <div className="p-2 bg-amber-700 text-white rounded-lg">
-                    <Award className="w-5 h-5 text-amber-300" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-xs text-white uppercase tracking-wider">{lang === 'bn' ? 'ল্যাব পরীক্ষিত' : 'Lab Tested'}</p>
-                    <p className="text-[10px] text-gray-300">{lang === 'bn' ? 'বিশ্লেষণ রিপোর্ট ও প্রমাণ উপলব্ধ' : 'Analytical raw honey report available'}</p>
+                  {(() => {
+                    const activeSlide = finalSliderItems[featuredIdx % finalSliderItems.length];
+                    if (!activeSlide) return null;
+                    const discountPercent = 15;
+                    const discountedPrice = Math.round(activeSlide.price * (1 - discountPercent / 100));
+
+                    return (
+                      <div className="space-y-4">
+                        <div className="relative w-full h-52 rounded-xl overflow-hidden bg-emerald-900/20 border border-white/10">
+                          <img 
+                            src={activeSlide.images[0]} 
+                            alt="" 
+                            className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" 
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute bottom-3 left-3 bg-emerald-950/80 backdrop-blur-md text-white font-bold text-[10px] px-2.5 py-1 rounded-lg">
+                            {getCategoryLabel(activeSlide.category, lang)}
+                          </div>
+                        </div>
+
+                        <div className="text-left space-y-1">
+                          <h3 className="font-bold text-base text-white leading-tight min-h-[44px] flex items-center">
+                            {getLocalizedProductName(activeSlide.name, lang)}
+                          </h3>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex text-amber-400">
+                              {[...Array(5)].map((_, i) => (
+                                <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                              ))}
+                            </div>
+                            <span className="text-[10px] text-emerald-100 font-bold">({activeSlide.reviewsCount} {lang === 'bn' ? 'টি রিভিউ' : 'Reviews'})</span>
+                          </div>
+
+                          <div className="flex items-baseline gap-2 pt-2">
+                            <span className="text-lg font-mono font-bold text-amber-300">{setPriceFormat(discountedPrice)}</span>
+                            <span className="text-xs font-mono text-gray-400 line-through font-medium">{setPriceFormat(activeSlide.price)}</span>
+                            <span className="text-[10px] bg-red-500 text-white font-bold px-1.5 py-0.5 rounded">-{discountPercent}% OFF</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          <button 
+                            onClick={() => openProductDetails(activeSlide)}
+                            className="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/10 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                          >
+                            {lang === 'bn' ? 'বিস্তারিত দেখুন 🔎' : 'View Specs'}
+                          </button>
+                          <button 
+                            onClick={() => addToCart(activeSlide, 1, true)}
+                            className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-xl text-xs shadow-md transition-colors cursor-pointer"
+                          >
+                            {lang === 'bn' ? 'ব্যাগে রাখুন 🛍️' : 'Add to Bag'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
+                    <span className="text-[11px] text-emerald-200 font-mono">
+                      {lang === 'bn' ? 'স্লাইড :' : 'Slide :'} <strong className="text-amber-300">{(featuredIdx % finalSliderItems.length) + 1}</strong> / {finalSliderItems.length}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button 
+                        onClick={() => setFeaturedIdx((prev) => (prev - 1 + finalSliderItems.length) % finalSliderItems.length)}
+                        className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/15 text-white rounded-lg transition-colors cursor-pointer animate-none"
+                        title="Previous Slider"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => setFeaturedIdx((prev) => (prev + 1) % finalSliderItems.length)}
+                        className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/15 text-white rounded-lg transition-colors cursor-pointer animate-none"
+                        title="Next Slider"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 1.1 Home Sourcing Video Highlights */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 pb-2 border-b border-stone-200">
-              <div>
-                <h3 id="transparent-sourcing-section" className="text-xl font-bold border-l-4 border-emerald-800 pl-4 text-emerald-950 font-display">
-                  {lang === 'bn' ? 'উৎসের স্বচ্ছতা: লাইভ সোর্সিং ও যাচাইকরণ ভিডিও' : 'Source Transparency'}
+          {/* SECTION B: CATEGORIES GRID SECTION */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-xl mx-auto mb-10">
+              <span className="text-xs font-extrabold text-amber-700 uppercase tracking-widest block mb-1.5">
+                {lang === 'bn' ? 'প্রিমিয়াম ক্যাটাগরি' : 'PREMIUM DEPARTMENTS'}
+              </span>
+              <h2 className="text-2xl md:text-4xl font-serif font-bold text-slate-900 leading-tight">
+                {lang === 'bn' ? 'পছন্দসই পণ্যশ্রেণী বাছাই করুন' : 'Explore Certified Categories'}
+              </h2>
+              <div className="h-0.5 w-16 bg-emerald-600 mx-auto mt-4"></div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 md:gap-5">
+              {categories.filter(c => c !== 'All').map((cat) => {
+                const count = products.filter(p => p.category === cat).length;
+                const getCategoryIcon = (catName: string) => {
+                  switch (catName) {
+                    case 'Dry Food': return <Apple className="w-5 h-5 text-emerald-700" />;
+                    case 'Beauty & Cosmetics': return <Sparkles className="w-5 h-5 text-amber-600" />;
+                    case 'Fashion': return <Shirt className="w-5 h-5 text-indigo-700" />;
+                    case 'Perfume': return <Flame className="w-5 h-5 text-teal-600" />;
+                    case 'Gadgets & Electronics': return <Smartphone className="w-5 h-5 text-rose-600" />;
+                    case 'Spices': return <Leaf className="w-5 h-5 text-amber-700" />;
+                    default: return <ShoppingBag className="w-5 h-5 text-stone-600" />;
+                  }
+                };
+
+                const getCategoryBannerImg = (catName: string) => {
+                  switch (catName) {
+                    case 'Dry Food': return 'https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&q=80&w=300';
+                    case 'Beauty & Cosmetics': return 'https://images.unsplash.com/photo-1608248597481-496100c80836?auto=format&fit=crop&q=80&w=300';
+                    case 'Fashion': return 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&q=80&w=300';
+                    case 'Perfume': return 'https://images.unsplash.com/photo-1616949755610-8c9bbc08f138?auto=format&fit=crop&q=80&w=300';
+                    case 'Gadgets & Electronics': return 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&q=80&w=300';
+                    case 'Spices': return 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&q=80&w=300';
+                    default: return 'https://images.unsplash.com/photo-1471193945509-9ad0617afabf?auto=format&fit=crop&q=80&w=300';
+                  }
+                };
+
+                return (
+                  <div 
+                    key={cat}
+                    onClick={() => { setCurrentTab('shop'); setSelectedCategory(cat); }}
+                    className="group bg-white rounded-2xl border border-stone-200/70 p-4 text-center cursor-pointer shadow-xs hover:shadow-md hover:border-emerald-600/30 transition-all flex flex-col justify-between h-full hover:-translate-y-1 duration-300"
+                  >
+                    <div className="space-y-3">
+                      <div className="relative w-full h-24 rounded-xl overflow-hidden bg-stone-50">
+                        <img 
+                          src={getCategoryBannerImg(cat)} 
+                          alt="" 
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-stone-900/40 to-transparent flex items-end justify-center pb-2">
+                          <div className="p-1.5 bg-white/95 backdrop-blur-xs rounded-lg shadow-sm">
+                            {getCategoryIcon(cat)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <h3 className="font-bold text-xs md:text-sm text-stone-900 leading-tight group-hover:text-emerald-700 transition-colors">
+                        {getCategoryLabel(cat, lang)}
+                      </h3>
+                    </div>
+
+                    <div className="mt-2.5 pt-2 border-t border-stone-100 flex items-center justify-between text-[10px] text-stone-450">
+                      <span className="font-mono font-medium">{count} {lang === 'bn' ? 'টি পণ্য' : 'Items'}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-stone-300 group-hover:text-emerald-700 transition-colors" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SECTION C: FEATURED PRODUCTS GRID WITH COMPREHENSIVE CARDS */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between mb-8 pb-3 border-b border-stone-200/75">
+              <div className="text-left">
+                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block mb-1">
+                  {lang === 'bn' ? 'আজকের সুনাহ সংগ্রহ' : 'TODAY\'S REVELATIONS'}
+                </span>
+                <h3 className="text-xl md:text-3xl font-serif font-bold text-slate-900">
+                  {lang === 'bn' ? 'বিশেষভাবে নির্বাচিত খাঁটি পণ্যসমূহ' : 'Featured Marketplace Goods'}
                 </h3>
-                <p className="text-sm text-slate-500 mt-1">
-                  {lang === 'bn' ? 'আমরা কীভাবে পণ্য সংগ্রহ করি তা সরাসরি দেখুন।' : 'Watch how we harvest and procure under strict halal criteria.'}
-                </p>
               </div>
               <button 
-                id="btn-view-transparent-shop"
-                onClick={() => setCurrentTab('shop')} 
-                className="text-emerald-700 hover:text-emerald-800 font-semibold text-sm flex items-center gap-0.5 mt-2 md:mt-0 cursor-pointer"
+                onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
+                className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer whitespace-nowrap"
               >
-                <span>{lang === 'bn' ? 'সকল পণ্য দেখুন' : 'Browse All Products'}</span>
+                <span>{lang === 'bn' ? 'সকল পণ্য সংগ্রহ' : 'Explore Store'}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {sourcingStories.map((story, idx) => (
-                <div key={idx} className="bg-white rounded-2xl overflow-hidden shadow-xs border border-stone-200/65 flex flex-col sm:flex-row h-full">
-                  <div className="relative w-full sm:w-48 h-40 bg-zinc-900 shrink-0">
-                    <video 
-                      src={story.videoUrl} 
-                      className="w-full h-full object-cover opacity-85" 
-                      loop 
-                      muted 
-                      playsInline
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/15">
-                      <span className="p-3 bg-white/20 backdrop-blur-xs rounded-full text-white cursor-pointer hover:scale-105 transition-all">
-                        <Play className="w-6 h-6 fill-white" />
-                      </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {finalFeaturedGrid.map((product) => {
+                const saving = 10;
+                const finalPrice = Math.round(product.price * (1 - saving / 100));
+                return (
+                  <div key={product.id} className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full group relative">
+                    <div className="relative">
+                      <div className="w-full h-48 bg-stone-50 overflow-hidden relative" onClick={() => openProductDetails(product)}>
+                        <img 
+                          src={product.images[0]} 
+                          alt="" 
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-103 cursor-pointer"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
+                          {product.certificationStatus.imamVerified && (
+                            <span className="inline-flex items-center gap-0.5 bg-emerald-700/90 backdrop-blur-md text-white font-bold text-[8px] px-2 py-0.5 rounded shadow-sm">
+                              ✓ {lang === 'bn' ? 'ইয়াশিন ইমাম প্রত্যায়িত' : 'Imam Verified'}
+                            </span>
+                          )}
+                          {product.certificationStatus.labTested && (
+                            <span className="inline-flex items-center gap-0.5 bg-amber-600/90 backdrop-blur-md text-white font-bold text-[8px] px-2 py-0.5 rounded shadow-sm">
+                              ✓ {lang === 'bn' ? 'ল্যাব পরীক্ষিত' : 'Lab Tested'}
+                            </span>
+                          )}
+                        </div>
+
+                        <span className="absolute top-2.5 right-2.5 bg-red-500 text-white font-bold text-[9px] px-1.5 py-0.5 rounded">
+                          -{saving}%
+                        </span>
+                      </div>
+                      
+                      <div className="p-4 space-y-2 text-left">
+                        <span className="text-[10px] font-bold uppercase text-amber-700 tracking-wider font-mono">
+                          {getCategoryLabel(product.category, lang)}
+                        </span>
+
+                        <h4 
+                          onClick={() => openProductDetails(product)}
+                          className="font-bold text-stone-900 text-sm leading-snug cursor-pointer hover:text-emerald-700 transition-colors line-clamp-2 min-h-[40px]"
+                        >
+                          {getLocalizedProductName(product.name, lang)}
+                        </h4>
+
+                        <div className="flex items-center gap-1" title={`${product.rating}/5 Rating`}>
+                          <div className="flex text-amber-400">
+                            {[...Array(5)].map((_, i) => (
+                              <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            ))}
+                          </div>
+                          <span className="text-[10px] font-mono text-stone-400 font-bold">({product.reviewsCount})</span>
+                        </div>
+                      </div>
                     </div>
-                    <span className="absolute bottom-2 left-2 bg-emerald-900 text-white font-mono text-[9px] font-bold px-2 py-0.5 rounded tracking-wide uppercase">
-                      {story.origin}
-                    </span>
+
+                    <div className="p-4 pt-0 text-left space-y-3">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="font-mono text-base font-extrabold text-stone-900">{setPriceFormat(finalPrice)}</span>
+                        <span className="font-mono text-xs text-stone-400 line-through">{setPriceFormat(product.price)}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          onClick={() => openProductDetails(product)}
+                          className="py-1.5 px-2 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                        >
+                          {lang === 'bn' ? 'বিস্তারিত' : 'Detail'}
+                        </button>
+                        <button 
+                          onClick={() => addToCart(product, 1, true)}
+                          className="py-1.5 px-2 bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
+                        >
+                          🛍️ {lang === 'bn' ? 'যুক্ত করুন' : 'Add'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4 flex flex-col justify-between">
-                    <div>
-                      <h3 className="font-display font-extrabold text-base text-slate-800 mb-1.5 leading-snug">{story.title}</h3>
-                      <p className="text-xs text-stone-500 leading-relaxed mb-3">{story.desc}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 pt-2 border-t border-stone-100">
-                      <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-                      <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest">{lang === 'bn' ? 'বিশ্বাসী উৎস' : 'Honest Supply'}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
-        </>
+
+          {/* SECTION D: BEST SELLING PRODUCTS (HIGHEST RATED) */}
+          <div className="bg-[#022c22] text-white py-16">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center max-w-xl mx-auto mb-10">
+                <span className="text-xs font-bold text-amber-400 uppercase tracking-widest block mb-2">
+                  {lang === 'bn' ? 'জনপ্রিয় ও সর্বোচ্চ বিক্রীত' : 'CROWD FAVORITES'}
+                </span>
+                <h3 className="text-2xl md:text-4xl font-serif font-bold text-white">
+                  {lang === 'bn' ? 'গ্রাহকদের পছন্দের তালিকার শীর্ষে' : 'Best Selling Collection'}
+                </h3>
+                <div className="h-0.5 w-16 bg-amber-400 mx-auto mt-4"></div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {finalBestSellers.map((product) => {
+                  return (
+                    <div key={product.id} className="bg-white/5 rounded-2xl border border-emerald-800/60 overflow-hidden shadow-md flex flex-col justify-between h-full group">
+                      <div className="relative">
+                        <div className="w-full h-44 overflow-hidden" onClick={() => openProductDetails(product)}>
+                          <img 
+                            src={product.images[0]} 
+                            alt="" 
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-103 cursor-pointer"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <div className="p-4 space-y-2 text-left">
+                          <span className="text-[9px] font-bold text-amber-350 font-mono tracking-widest uppercase block">
+                            {getCategoryLabel(product.category, lang)}
+                          </span>
+                          <h4 
+                            onClick={() => openProductDetails(product)}
+                            className="font-bold text-white text-sm cursor-pointer hover:text-amber-300 transition-colors line-clamp-2 min-h-[40px]"
+                          >
+                            {getLocalizedProductName(product.name, lang)}
+                          </h4>
+                          <div className="flex items-center gap-1">
+                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                            <span className="text-[9px] text-emerald-100 font-mono">({product.reviewsCount})</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 pt-0 text-left space-y-3">
+                        <span className="font-mono text-base font-extrabold text-amber-300 block">{setPriceFormat(product.price)}</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button 
+                            onClick={() => openProductDetails(product)}
+                            className="py-1.5 px-2 bg-emerald-950/40 hover:bg-emerald-950 border border-emerald-800/85 text-emerald-100 font-bold rounded-lg text-xs transition-colors cursor-pointer animate-none"
+                          >
+                            {lang === 'bn' ? 'বিস্তারিত' : 'Detail'}
+                          </button>
+                          <button 
+                            onClick={() => addToCart(product, 1, true)}
+                            className="py-1.5 px-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-lg text-xs transition-colors cursor-pointer shadow-sm"
+                          >
+                            🛍️ {lang === 'bn' ? 'যুক্ত করুন' : 'Add'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION E: NEW ARRIVALS */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-xl mx-auto mb-10">
+              <span className="text-xs font-bold text-amber-700 uppercase tracking-widest block mb-2">
+                {lang === 'bn' ? 'নতুন পণ্য সংযোজন' : 'FRESH ACQUISITIONS'}
+              </span>
+              <h3 className="text-2xl md:text-4xl font-serif font-bold text-slate-900">
+                {lang === 'bn' ? 'ন্যায্য মূল্যে নতুন আগমনী সামগ্রী' : 'New Arrivals'}
+              </h3>
+              <div className="h-0.5 w-16 bg-emerald-600 mx-auto mt-4"></div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {finalNewArrivals.map((product) => {
+                return (
+                  <div key={product.id} className="bg-white rounded-2xl border border-stone-200/70 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full group">
+                    <div className="relative">
+                      <div className="w-full h-44 bg-stone-50 overflow-hidden relative" onClick={() => openProductDetails(product)}>
+                        <img 
+                          src={product.images[0]} 
+                          alt="" 
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-103 cursor-pointer animate-none"
+                          referrerPolicy="no-referrer"
+                        />
+                        <span className="absolute top-2.5 left-2.5 bg-emerald-800/90 text-white font-bold text-[8px] uppercase tracking-wider px-2 py-0.5 rounded shadow-xs">
+                          {lang === 'bn' ? 'নতুন' : 'New'}
+                        </span>
+                      </div>
+                      <div className="p-4 space-y-2 text-left">
+                        <span className="text-[10px] font-bold text-amber-700 font-mono uppercase tracking-wider block">
+                          {getCategoryLabel(product.category, lang)}
+                        </span>
+                        <h4 
+                          onClick={() => openProductDetails(product)}
+                          className="font-bold text-stone-900 text-sm cursor-pointer hover:text-emerald-700 transition-colors line-clamp-2 min-h-[40px]"
+                        >
+                          {getLocalizedProductName(product.name, lang)}
+                        </h4>
+                        <div className="flex items-center gap-0.5 text-amber-400">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          ))}
+                          <span className="text-[9px] text-stone-400 font-bold ml-1">({product.reviewsCount})</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 pt-0 text-left space-y-3">
+                      <span className="font-mono text-base font-extrabold text-stone-900 block">{setPriceFormat(product.price)}</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          onClick={() => openProductDetails(product)}
+                          className="py-1.5 px-2 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                        >
+                          {lang === 'bn' ? 'বিস্তারিত' : 'Detail'}
+                        </button>
+                        <button 
+                          onClick={() => addToCart(product, 1, true)}
+                          className="py-1.5 px-2 bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs transition-colors cursor-pointer shadow-sm"
+                        >
+                          🛍️ {lang === 'bn' ? 'যুক্ত করুন' : 'Add'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SECTION F: SPECIAL OFFERS BANNER */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-3xl p-6 md:p-10 text-emerald-950 flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg border border-amber-400/20 relative overflow-hidden">
+              <div className="absolute -left-12 -top-12 w-44 h-44 bg-white/10 rounded-full filter blur-xl pointer-events-none"></div>
+              <div className="absolute -right-12 -bottom-12 w-44 h-44 bg-white/10 rounded-full filter blur-xl pointer-events-none"></div>
+
+              <div className="text-left space-y-3 relative z-10 max-w-2xl">
+                <span className="bg-[#022c22] text-white font-bold text-[9px] uppercase tracking-widest px-2.5 py-1 rounded-full">
+                  {lang === 'bn' ? 'সীমিত সময়ের অফার' : 'FLASH CAMPAIGN'}
+                </span>
+                <h3 className="text-2xl md:text-3xl font-serif font-extrabold leading-tight">
+                  {lang === 'bn' 
+                    ? 'রবিউল আওয়াল স্পেশাল উৎসব ও ১০% অতিরিক্ত ক্যাশব্যাক!' 
+                    : 'Sunnah Gathering Feast: 10% Extra Cashback!'}
+                </h3>
+                <p className="text-xs md:text-sm text-emerald-950/90 font-medium leading-relaxed">
+                  {lang === 'bn'
+                    ? 'যেকোনো ক্যাটাগরির অর্ডারে কুপন কোড "SUNNAH10" ব্যবহার করে উপভোগ করুন ১০% ছাড়। বিকাশ বা নগদ পেমেন্টে আরও অতিরিক্ত নিশ্চিত ৫% ক্যাশব্যাক সরাসরি ওয়ালেটে!'
+                    : 'Apply coupon code "SUNNAH10" at secure checkout and enjoy 10% instant price reductions. Fast and safe dispatch with bKash and Nagad payment support.'}
+                </p>
+              </div>
+
+              <div className="shrink-0 relative z-10 bg-[#022c22] text-amber-300 p-6 rounded-2xl flex flex-col items-center justify-center border border-amber-300/10 min-w-[220px]">
+                <span className="text-[10px] text-white uppercase tracking-widest font-bold mb-1">{lang === 'bn' ? 'কুপন কোড' : 'PROMO KEY'}</span>
+                <span className="text-2xl font-mono font-extrabold tracking-wider bg-emerald-900 border border-emerald-800/60 px-4 py-1.5 rounded-xl text-white select-all">
+                  SUNNAH10
+                </span>
+                <button 
+                  onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
+                  className="mt-4 px-6 py-2.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-lg text-xs uppercase cursor-pointer w-full text-center transition-all animate-none"
+                >
+                  {lang === 'bn' ? 'অফারটি নিন ⚡' : 'Claim Now'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION G: WHY CHOOSE DADAJAN */}
+          <div id="why-choose-dadajan-sec" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="text-center max-w-xl mx-auto mb-10">
+              <span className="text-xs font-bold text-amber-700 uppercase tracking-widest block mb-2">
+                {lang === 'bn' ? 'আমাদের ওয়াদা ও প্রতিশ্রুতি' : 'WHY DADAJAN IS DIFFERENT'}
+              </span>
+              <h3 className="text-2xl md:text-4xl font-serif font-bold text-slate-900">
+                {lang === 'bn' ? 'আমরা কেন শতভাগ বিশ্বস্ত ও অনন্য?' : 'Why Choose Dadajan'}
+              </h3>
+              <p className="text-xs text-stone-500 mt-2">
+                {lang === 'bn' ? 'একটি সুখী ও হালাল মুসলিম পরিবারের সুস্থ দৈনন্দিন লাইফস্টাইল গঠনে আমরা প্রতিশ্রুতিবদ্ধ।' : 'Sustaining true halal guidelines to support beautiful Muslim homes.'}
+              </p>
+              <div className="h-0.5 w-16 bg-emerald-600 mx-auto mt-4"></div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {/* Option 1: Genuine Products */}
+              <div className="bg-white rounded-2xl border border-stone-200/75 p-6 text-left space-y-4 shadow-xs">
+                <div className="p-3 bg-emerald-50 rounded-xl w-12 h-12 flex items-center justify-center text-emerald-850 font-bold">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div className="space-y-1.5">
+                  <h4 className="font-extrabold text-[#022c22] text-sm md:text-base leading-snug">{lang === 'bn' ? 'শতভাগ আসল পণ্য' : 'Genuine Products'}</h4>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    {lang === 'bn' 
+                      ? 'অর্গানিক ও ভেজালমুক্ত বিশুদ্ধতার নিশ্চয়তা সহ কোনো সিন্থেটিক গন্ধ বা কেমিক্যাল বিহীন খামারী বিশুদ্ধ পণ্য।'
+                      : 'Authenticity confirmed. Zero chemical additives or sucrose in our wild forest honey harvests.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 2: Fast Delivery */}
+              <div className="bg-white rounded-2xl border border-stone-200/75 p-6 text-left space-y-4 shadow-xs">
+                <div className="p-3 bg-amber-50 rounded-xl w-12 h-12 flex items-center justify-center text-amber-700 font-bold">
+                  <Truck className="w-6 h-6" />
+                </div>
+                <div className="space-y-1.5">
+                  <h4 className="font-extrabold text-[#022c22] text-sm md:text-base leading-snug">{lang === 'bn' ? 'দ্রুত ডেলিভারি' : 'Fast Delivery'}</h4>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    {lang === 'bn' 
+                      ? 'খুব দ্রুত ২৪ থেকে ৪৮ ঘণ্টার মধ্যে আপনার বিশ্বস্ত এলাকা-ভিত্তিক ইমাম ও ডিলার অংশীদারদের মাধ্যমে সরাসরি ডেলিভারি।'
+                      : 'Immediate dispatch directly through our local network hubs straight to your home address.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 3: Secure Payments */}
+              <div className="bg-white rounded-2xl border border-stone-200/75 p-6 text-left space-y-4 shadow-xs">
+                <div className="p-3 bg-teal-50 rounded-xl w-12 h-12 flex items-center justify-center text-teal-850 font-bold">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <div className="space-y-1.5">
+                  <h4 className="font-extrabold text-[#022c22] text-sm md:text-base leading-snug">{lang === 'bn' ? 'নিরাপদ পেমেন্ট গেটওয়ে' : 'Secure Payments'}</h4>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    {lang === 'bn' 
+                      ? 'পণ্য হাতে পেয়ে আস্থার সাথে ক্যাশ অন ডেলিভারি অথবা এনক্রিপ্টেড বিকাশ/নগদে নিরাপদ পেমেন্টের সুবর্ণ সুবিধা।'
+                      : 'Completely risk-free payments via SSL-certified bKash or convenient Cash on Delivery.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 4: Trusted Marketplace */}
+              <div className="bg-white rounded-2xl border border-stone-200/75 p-6 text-left space-y-4 shadow-xs">
+                <div className="p-3 bg-orange-50 rounded-xl w-12 h-12 flex items-center justify-center text-orange-700 font-bold">
+                  <CheckCircle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1.5">
+                  <h4 className="font-extrabold text-[#022c22] text-sm md:text-base leading-snug">{lang === 'bn' ? 'সত্যিকারের সোর্সিং' : 'Trusted Marketplace'}</h4>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    {lang === 'bn' 
+                      ? 'হাজারো সচেতন মুসলিম পরিবারের আস্থার ঠিকানা। আলেমদের স্বচক্ষে তত্ত্বাবধানে উৎসস্থল হতে পণ্য সংগ্রহের প্রমাণ।'
+                      : 'Blessed community workspace distributing equitable shares to verified local Imams with utmost integrity.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION H: CUSTOMER REVIEWS */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-xl mx-auto mb-10">
+              <span className="text-xs font-bold text-amber-700 uppercase tracking-widest block mb-2">
+                {lang === 'bn' ? 'গ্রাহকদের সন্তুষ্টির প্রমাণ' : 'TESTIMONIALS OF TRUTH'}
+              </span>
+              <h3 className="text-2xl md:text-4xl font-serif font-bold text-slate-900">
+                {lang === 'bn' ? 'আমাদের প্রতি শুভাকাঙ্ক্ষীদের মন্তব্য' : 'What Our Buyers Say'}
+              </h3>
+              <div className="h-0.5 w-16 bg-emerald-600 mx-auto mt-4"></div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Review 1 */}
+              <div className="bg-white rounded-2xl border border-stone-200/70 p-6 text-left flex flex-col justify-between h-full shadow-xs">
+                <div className="space-y-4">
+                  <div className="flex text-amber-400">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-450" />
+                    ))}
+                  </div>
+                  <p className="text-stone-600 text-xs md:text-sm leading-relaxed italic">
+                    {lang === 'bn'
+                      ? '"সুন্দরবনের খলিশা মধু কেনার পর সত্যিই অবাক হয়েছি। বোতল খোলার সাথেই অতুলনীয় ঘ্রাণ আর স্বাদ। সবচেয়ে বড় কথা, পণ্যটির সোর্সিং ভিডিও আমাদের মনে অগাধ বিশ্বাস এনে দিয়েছে। জাযাকাল্লাহু খাইরান!"'
+                      : '"The Sundarbans Honey tastes amazing. It came beautifully packed with a lab analysis report copy. Sourcing live video gave us absolute peace of mind. Exceptional service!"'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 pt-6 border-t border-stone-100 mt-6 md:mt-8">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-800 text-sm">
+                    ম
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-stone-900 text-xs md:text-sm">Md. Nasir Uddin</h5>
+                    <p className="text-[10px] text-stone-400 font-mono font-bold uppercase">{lang === 'bn' ? 'ঢাকা, বাংলাদেশ' : 'Dhaka, BD'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Review 2 */}
+              <div className="bg-white rounded-2xl border border-stone-200/70 p-6 text-left flex flex-col justify-between h-full shadow-xs">
+                <div className="space-y-4">
+                  <div className="flex text-amber-400">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-450" />
+                    ))}
+                  </div>
+                  <p className="text-stone-600 text-xs md:text-sm leading-relaxed italic">
+                    {lang === 'bn'
+                      ? '"দাদাজান মখমল জায়নামাজ আর জাফরান সাবান অর্ডার করেছিলাম। কাপড়ের বুনন সুনিপুণ ও জাফরান সাবানের মৃদু ঘ্রাণটি ভীষণ চমৎকার। দাড়ি ট্রিমারটির ধারণক্ষমতা দীর্ঘস্থায়ী।"'
+                      : '"Ordered the Shahi Panjabi for my father and the saffron soap. The cotton is high-quality and soft. Trimmer is precise with low heat output. Highly recommended!"'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 pt-6 border-t border-stone-100 mt-6 md:mt-8">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-800 text-sm">
+                    ফ
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-stone-900 text-xs md:text-sm">Fatima Syeda</h5>
+                    <p className="text-[10px] text-stone-400 font-mono font-bold uppercase">{lang === 'bn' ? 'সিলেট, বাংলাদেশ' : 'Sylhet, BD'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Review 3 */}
+              <div className="bg-white rounded-2xl border border-stone-200/70 p-6 text-left flex flex-col justify-between h-full shadow-xs">
+                <div className="space-y-4">
+                  <div className="flex text-amber-400">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-450" />
+                    ))}
+                  </div>
+                  <p className="text-stone-600 text-xs md:text-sm leading-relaxed italic">
+                    {lang === 'bn'
+                      ? '"স্মার্ট তসবিহ কাউন্টার আর জেন্নাতুল ফেরদৌস আতরের জোড় চমৎকার। প্রতিটি তাসবিহ জিকিরে কম্পন সংকেত দারুণ সাহায্য করে। পেমেন্ট পদ্ধতিও খুবই সাবলীল ও সৎ।"'
+                      : '"The smart tasbeeh counter and white oud are outstanding. I can carry my daily dhikr with vibration cues at night easily. Alhamdulillah for DADAJAN! Barakah always."'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 pt-6 border-t border-stone-100 mt-6 md:mt-8">
+                  <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center font-bold text-teal-850 text-sm">
+                    ক
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-stone-900 text-xs md:text-sm">Maulana Kabir Ahmed</h5>
+                    <p className="text-[10px] text-stone-400 font-mono font-bold uppercase">{lang === 'bn' ? 'চট্টগ্রাম, বাংলাদেশ' : 'Chattogram, BD'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* 3. Product Category Filters & Product List (Shop/Home both show this) */}
-      {(currentTab === 'home' || currentTab === 'shop') && (
+      {/* 3. Product Category Filters & Product List (Shop tab shows this exclusively now) */}
+      {currentTab === 'shop' && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 bg-transparent">
         {currentTab === 'shop' && (
           <div className="mb-6 pt-4">

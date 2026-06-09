@@ -172,9 +172,14 @@ export function getLocalizedProductName(name: string, lang: 'bn' | 'en'): string
  */
 export function getCategoryLabel(cat: string, lang: 'bn' | 'en'): string {
   if (cat === 'All') return lang === 'bn' ? 'সকল পণ্য' : 'All Products';
-  if (cat === 'Pure Food Collection') return lang === 'bn' ? 'বিশুদ্ধ খাদ্য সংগ্রহ' : 'Pure Food Collection';
+  if (cat === 'Pure Food Collection' || cat === 'Dry Food') return lang === 'bn' ? 'শুকনো খাবার ও খাঁটি খাদ্য' : 'Dry Food';
   if (cat === 'Sunnah & Lifestyle') return lang === 'bn' ? 'সুন্নাহ ও লাইফস্টাইল' : 'Sunnah & Lifestyle';
   if (cat === 'Special Collections') return lang === 'bn' ? 'বিশেষ কালেকশন' : 'Special Collections';
+  if (cat === 'Beauty & Cosmetics') return lang === 'bn' ? 'সৌন্দর্য ও প্রসাধন' : 'Beauty & Cosmetics';
+  if (cat === 'Fashion') return lang === 'bn' ? 'ফ্যাশন ও বুটিক' : 'Fashion';
+  if (cat === 'Perfume') return lang === 'bn' ? 'আতর ও সুগন্ধি' : 'Perfume';
+  if (cat === 'Gadgets & Electronics') return lang === 'bn' ? 'স্মার্ট গ্যাজেটস ও আইটি' : 'Gadgets & Electronics';
+  if (cat === 'Spices') return lang === 'bn' ? 'খাঁটি মসলা কালেকশন' : 'Spices';
   return cat;
 }
 

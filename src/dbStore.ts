@@ -6,7 +6,7 @@ const initialProducts: Product[] = [
     id: 'prod-1',
     name: 'Sundarbans Premium Honey (সুন্দরবনের প্রাকৃতিক খলিশা মধু)',
     sku: 'SKU-HONEY-SB-500',
-    category: 'Pure Food Collection',
+    category: 'Dry Food',
     price: 950,
     costPrice: 620,
     stockQty: 80,
@@ -31,7 +31,7 @@ const initialProducts: Product[] = [
     id: 'prod-2',
     name: 'Grass-fed Cow Ghee (হালাল খাঁটি গাওয়া ঘি)',
     sku: 'SKU-GHEE-GF-500',
-    category: 'Pure Food Collection',
+    category: 'Dry Food',
     price: 1350,
     costPrice: 900,
     stockQty: 45,
@@ -56,7 +56,7 @@ const initialProducts: Product[] = [
     id: 'prod-3',
     name: 'Extra Virgin Palestine Olive Oil (ফিলিস্তিনি জাইতুন তেল)',
     sku: 'SKU-OLIVE-PAL-500',
-    category: 'Pure Food Collection',
+    category: 'Dry Food',
     price: 1850,
     costPrice: 1250,
     stockQty: 30,
@@ -81,10 +81,10 @@ const initialProducts: Product[] = [
     id: 'prod-4',
     name: 'Saudi Premium Ajwa Dates (মদিনার প্রিমিয়াম আজওয়া খেজুর)',
     sku: 'SKU-DATES-AJWA-1000',
-    category: 'Sunnah & Lifestyle',
+    category: 'Dry Food',
     price: 1400,
     costPrice: 950,
-    stockQty: 12, // Low stock item
+    stockQty: 12,
     images: [
       'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&q=80&w=600',
       'https://images.unsplash.com/photo-1628136367375-9247343e390c?auto=format&fit=crop&q=80&w=600',
@@ -106,7 +106,7 @@ const initialProducts: Product[] = [
     id: 'prod-5',
     name: 'Arabian Jannatul Firdous Attar (জান্নাতুল ফেরদৌস আতর)',
     sku: 'SKU-ATTAR-JF-12',
-    category: 'Sunnah & Lifestyle',
+    category: 'Perfume',
     price: 450,
     costPrice: 240,
     stockQty: 100,
@@ -128,10 +128,34 @@ const initialProducts: Product[] = [
     reviewsCount: 9
   },
   {
+    id: 'prod-attar-wo',
+    name: 'White Oud Imperial Blended Attar (হোয়াইট ঔদ লাক্সারি আতর)',
+    sku: 'SKU-ATTAR-WO-12',
+    category: 'Perfume',
+    price: 750,
+    costPrice: 420,
+    stockQty: 50,
+    images: [
+      'https://images.unsplash.com/photo-1547887537-6158d64c35b3?auto=format&fit=crop&q=80&w=600',
+      'https://images.unsplash.com/photo-1616949755610-8c9bbc08f138?auto=format&fit=crop&q=80&w=600'
+    ],
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-pouring-oil-from-a-dropper-40292-large.mp4',
+    certificationStatus: {
+      imamVerified: true,
+      labTested: false,
+      certifiedAuthentic: true
+    },
+    origin: 'Dehn Al-Oud Distilleries, Sylhet Border Woods',
+    ingredients: 'Pure Agarwood essential oils, amber white compound, non-alcoholic base',
+    description: 'An exceptional warm and aquatic woody fragrance starting with premium white musk leading to heavy aged cedarwood nodes. True organic longevity with deep spiritual resonance.',
+    rating: 4.9,
+    reviewsCount: 13
+  },
+  {
     id: 'prod-6',
     name: 'Turkish Premium Velvet Prayer Mat (তুর্কি মখমল জায়নামাজ - গোল্ড এমব্রয়ডারি)',
     sku: 'SKU-MAT-TURK-01',
-    category: 'Sunnah & Lifestyle',
+    category: 'Fashion',
     price: 1800,
     costPrice: 1100,
     stockQty: 25,
@@ -153,10 +177,34 @@ const initialProducts: Product[] = [
     reviewsCount: 15
   },
   {
+    id: 'prod-fashion-panjabi',
+    name: 'Cotton Shahi Modesty Panjabi (রাজকীয় শাহি সুতি পাঞ্জাবি)',
+    sku: 'SKU-FASHION-PJB-01',
+    category: 'Fashion',
+    price: 2400,
+    costPrice: 1550,
+    stockQty: 35,
+    images: [
+      'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&q=80&w=600',
+      'https://images.unsplash.com/photo-1618242472859-ac0a9a95781a?auto=format&fit=crop&q=80&w=600'
+    ],
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-folding-clothes-neatly-and-placing-in-suit-case-40321-large.mp4',
+    certificationStatus: {
+      imamVerified: true,
+      labTested: false,
+      certifiedAuthentic: true
+    },
+    origin: 'Tangail Handloom Weavers, Bangladesh',
+    ingredients: '100% Organic Egyptian Combed Cotton',
+    description: 'Exquisite hand-guided embroidery around fine neck placket in subtle golden-cream colors. Features comfortable loose-fit following elegant modesty rules. Perfect for Jumuah congregation and blessed celebrations.',
+    rating: 4.8,
+    reviewsCount: 27
+  },
+  {
     id: 'prod-7',
     name: 'Hajj & Umrah Complete Essential Kit (হজ্ব ও ওমরাহ সম্পূর্ণ সাথি কিট)',
     sku: 'SKU-HAJJ-PACK-01',
-    category: 'Special Collections',
+    category: 'Fashion',
     price: 3200,
     costPrice: 2200,
     stockQty: 15,
@@ -176,6 +224,149 @@ const initialProducts: Product[] = [
     description: 'Take the worry out of preparation. This curated package includes premium combed 100% cotton double-towelled Ihram, high-grade security belt pouch, non-scented organic toiletries, stone collection pouch, Tawaf counter ring, and reference book approved by scholars.',
     rating: 5,
     reviewsCount: 12
+  },
+  {
+    id: 'prod-beauty-seedoil',
+    name: 'Organic Black Seed Oil Hair Elixir (কালোজিরা তেল হেয়ার এলিক্সির)',
+    sku: 'SKU-BEAUTY-BSEED-200',
+    category: 'Beauty & Cosmetics',
+    price: 850,
+    costPrice: 500,
+    stockQty: 60,
+    images: [
+      'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&q=80&w=600',
+      'https://images.unsplash.com/photo-1608248597481-496100c80836?auto=format&fit=crop&q=80&w=600'
+    ],
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-pouring-oil-from-a-dropper-40292-large.mp4',
+    certificationStatus: {
+      imamVerified: true,
+      labTested: true,
+      certifiedAuthentic: true
+    },
+    origin: 'Mymensingh Herbal Farms, Bangladesh',
+    ingredients: '100% Cold Pressed Organic Nigella Sativa seed oil with virgin coconut extracts',
+    description: 'Derived under low-temperature cold press to preserve active Thymoquinone. Richly nourishes scalp hair under Prophetic sunnah guidance for complete daily premium hair nutrition and shine.',
+    rating: 4.8,
+    reviewsCount: 11
+  },
+  {
+    id: 'prod-beauty-soap',
+    name: 'Handcrafted Saffron Goat Milk Soap (জাফরান ও ছাগলের দুধের সাবান)',
+    sku: 'SKU-BEAUTY-SOAP-100',
+    category: 'Beauty & Cosmetics',
+    price: 380,
+    costPrice: 220,
+    stockQty: 95,
+    images: [
+      'https://images.unsplash.com/photo-1607006342411-9243db068bfc?auto=format&fit=crop&q=80&w=600',
+      'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&q=80&w=600'
+    ],
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-pouring-oil-from-a-dropper-40292-large.mp4',
+    certificationStatus: {
+      imamVerified: true,
+      labTested: false,
+      certifiedAuthentic: true
+    },
+    origin: 'Sylhet Artisan Soapworks, Bangladesh',
+    ingredients: 'Raw Kashmiri Saffron Threads, Organic Goat Milk, Beeswax, Olive Oil',
+    description: 'Gently cures dry skin, irritation, blemishes and enhances glow naturally. Completely SLS, paraben, and petroleum tallow derivative-free. Pure faith-conscious luxury skincare.',
+    rating: 4.9,
+    reviewsCount: 16
+  },
+  {
+    id: 'prod-gadget-tasbeeh',
+    name: 'Premium OLED Smart Tasbeeh Counter (ডিজিটাল এলইডি স্মার্ট তাসবিহ)',
+    sku: 'SKU-GADGET-TASB-01',
+    category: 'Gadgets & Electronics',
+    price: 650,
+    costPrice: 350,
+    stockQty: 120,
+    images: [
+      'https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&q=80&w=600',
+      'https://images.unsplash.com/photo-1574634534894-89d7576c8259?auto=format&fit=crop&q=80&w=600'
+    ],
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-hands-running-on-embroidered-sari-fabric-41004-large.mp4',
+    certificationStatus: {
+      imamVerified: true,
+      labTested: false,
+      certifiedAuthentic: true
+    },
+    origin: 'Imported Tech, Configured in Dhaka, Bangladesh',
+    ingredients: 'Silicone wrap-around strap, high-brightness OLED micro screen, Smart Vibrating Node',
+    description: 'Silent vibration alert at every 33, 99 and 100 counts. Keeps dual tally memory logs, rechargeable via USB-C. Encourages convenient, unobtrusive daily Thikr.',
+    rating: 4.8,
+    reviewsCount: 38
+  },
+  {
+    id: 'prod-gadget-trimmer',
+    name: 'Sunnah Shaver & Precision Beard Trimmer (সুন্নাহ দাড়ি ট্রিমার ও ক্লিপার)',
+    sku: 'SKU-GADGET-TRIM-XR',
+    category: 'Gadgets & Electronics',
+    price: 1650,
+    costPrice: 1050,
+    stockQty: 40,
+    images: [
+      'https://images.unsplash.com/photo-1621607512214-68297480165e?auto=format&fit=crop&q=80&w=600'
+    ],
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-honey-dripping-from-a-wooden-dipper-41005-large.mp4',
+    certificationStatus: {
+      imamVerified: true,
+      labTested: false,
+      certifiedAuthentic: true
+    },
+    origin: 'Premium Shaving Co, Styled for Muslim Grooming',
+    ingredients: 'Titanium-coated micro-blades, high torque copper motor, 600mAh battery',
+    description: 'Engineered precisely for detailing beard margins and cleaning mustaches following sunnah limits. Ultra-low heat micro titanium tooth blade prevents shaving burns and preserves skin elasticity.',
+    rating: 4.6,
+    reviewsCount: 19
+  },
+  {
+    id: 'prod-spice-saffron',
+    name: 'Iranian Royal Sargol Saffron Threads (ইরানিয়া জাফরান কুঁড়ি)',
+    sku: 'SKU-SPICE-SAFFRON-05',
+    category: 'Spices',
+    price: 1250,
+    costPrice: 850,
+    stockQty: 25,
+    images: [
+      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&q=80&w=600',
+      'https://images.unsplash.com/photo-1509358271058-acd22cc93898?auto=format&fit=crop&q=80&w=600'
+    ],
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-pouring-dripping-olive-oil-42289-large.mp4',
+    certificationStatus: {
+      imamVerified: true,
+      labTested: true,
+      certifiedAuthentic: true
+    },
+    origin: 'Mashhad Plains, Iran (Khorasan region Imported)',
+    ingredients: '100% Grade A Sargol Saffron Threads',
+    description: 'Possesses incredibly intense crimson threads, coloring milk and tea into gold instantly. Rich in crocin and aromatic safranal. Pure hand-picked golden sunnah spice of premium certification.',
+    rating: 4.9,
+    reviewsCount: 22
+  },
+  {
+    id: 'prod-spice-cinnamon',
+    name: 'Organic Halal Ceylon Cinnamon Bark (সেরা সিলন দারুচিনি)',
+    sku: 'SKU-SPICE-CINNA-250',
+    category: 'Spices',
+    price: 420,
+    costPrice: 280,
+    stockQty: 70,
+    images: [
+      'https://images.unsplash.com/photo-1509358271058-acd22cc93898?auto=format&fit=crop&q=80&w=600',
+      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&q=80&w=600'
+    ],
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-dropping-olive-oil-on-bread-34062-large.mp4',
+    certificationStatus: {
+      imamVerified: true,
+      labTested: false,
+      certifiedAuthentic: true
+    },
+    origin: 'Dambulla Plantation Forests, Sri Lanka (Ceylon Imported)',
+    ingredients: 'Thin rolled soft bark quill of True Ceylon Cinnamon',
+    description: 'Extremely low coumarin, healthy food preservative. Offers a delicate, sweet, highly wood-scented flavor compound far superior to cassia bark. Essential for premium authentic curries.',
+    rating: 4.7,
+    reviewsCount: 15
   }
 ];
 
@@ -478,7 +669,13 @@ export function loadDB(): DBState {
     return db;
   }
   try {
-    return JSON.parse(stored);
+    const parsed = JSON.parse(stored);
+    const hasNewItems = parsed.products && parsed.products.some((p: any) => p.sku === 'SKU-SPICE-SAFFRON-05');
+    if (!hasNewItems) {
+      parsed.products = initialProducts;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    }
+    return parsed;
   } catch (e) {
     console.error('Failed to parse database, resetting to initial', e);
     return {
