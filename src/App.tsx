@@ -6,6 +6,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { AuthPage } from './components/AuthPage';
 import { supabase } from './supabaseClient';
 import { AlertCircle, Terminal, Info, BellRing } from 'lucide-react';
+import { parseCurrentRoute, navigateToRoute } from './navigation';
 
 function DashboardLayout() {
   const { activePanel, setActivePanel, notifications, lang, setLang, showAuthTab, setShowAuthTab, logout, isAuthLoading } = useApp();
@@ -35,41 +36,44 @@ function DashboardLayout() {
     validateSupabaseUser();
   }, [logout]);
 
-  // Handle URL router /login checking & dynamic session validation with supabase.auth.getSession()
+  // Synchronize layout panels & auth tabs with the browser route (pathname or hash)
   useEffect(() => {
-    const handleRouteAndSessionCheck = async () => {
-      // 1. Check if URL pathname or hash represents "/login"
-      if (window.location.hash === '#/login' || window.location.pathname === '/login') {
+    const syncRouteWithState = async () => {
+      const route = parseCurrentRoute();
+      
+      if (route.type === 'login') {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           setShowAuthTab('customer');
         } else {
-          // If they already have a session, clean the path
-          window.location.hash = '';
-          setShowAuthTab(null);
+          // If already logged in, navigate back home
+          navigateToRoute({ type: 'home' }, true);
         }
-      }
-
-      // 2. Protect private page viewports: partner & admin panels
-      if (activePanel === 'partner' || activePanel === 'admin') {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          // If no session, redirect to /login
-          window.location.hash = '#/login';
-          setShowAuthTab(activePanel === 'partner' ? 'partner' : 'customer');
-        }
+      } else if (route.type === 'partner') {
+        setActivePanel('partner');
+        setShowAuthTab(null);
+      } else if (route.type === 'admin') {
+        setActivePanel('admin');
+        setShowAuthTab(null);
+      } else {
+        // Any customer store tab or product details
+        setActivePanel('customer');
+        setShowAuthTab(null);
       }
     };
 
-    handleRouteAndSessionCheck();
+    syncRouteWithState();
 
-    const handleHashChange = () => {
-      handleRouteAndSessionCheck();
+    window.addEventListener('popstate', syncRouteWithState);
+    window.addEventListener('hashchange', syncRouteWithState);
+    window.addEventListener('routechange', syncRouteWithState);
+
+    return () => {
+      window.removeEventListener('popstate', syncRouteWithState);
+      window.removeEventListener('hashchange', syncRouteWithState);
+      window.removeEventListener('routechange', syncRouteWithState);
     };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [activePanel, setShowAuthTab]);
+  }, [setActivePanel, setShowAuthTab]);
 
   // Find unread notifications to flash briefly at the bottom to indicate real-time background split sync
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -99,8 +103,14 @@ function DashboardLayout() {
         {showAuthTab ? (
           <AuthPage 
             initialTab={showAuthTab}
-            onBack={() => setShowAuthTab(null)}
-            onSuccess={() => setShowAuthTab(null)}
+            onBack={() => {
+              setShowAuthTab(null);
+              navigateToRoute({ type: 'home' });
+            }}
+            onSuccess={() => {
+              setShowAuthTab(null);
+              navigateToRoute({ type: 'home' });
+            }}
           />
         ) : (
           <>
@@ -122,7 +132,7 @@ function DashboardLayout() {
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2.5">
             <button
-              onClick={() => { setActivePanel('customer'); setShowAuthTab(null); }}
+              onClick={() => { navigateToRoute({ type: 'home' }); }}
               className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activePanel === 'customer' 
                   ? 'bg-emerald-600 text-white shadow' 
@@ -132,7 +142,7 @@ function DashboardLayout() {
               🛒 {lang === 'bn' ? 'কাস্টমার স্টোর' : 'Customer Store'}
             </button>
             <button
-              onClick={() => { setActivePanel('partner'); }}
+              onClick={() => { navigateToRoute({ type: 'partner' }); }}
               className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activePanel === 'partner' 
                   ? 'bg-emerald-650 text-white shadow' 
@@ -142,7 +152,7 @@ function DashboardLayout() {
               Imam & Dealer Portal
             </button>
             <button
-              onClick={() => { setActivePanel('admin'); }}
+              onClick={() => { navigateToRoute({ type: 'admin' }); }}
               className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activePanel === 'admin' 
                   ? 'bg-amber-600 text-white shadow' 

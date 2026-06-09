@@ -5,6 +5,7 @@ import { ProductDetailsPage } from './ProductDetailsPage';
 import { UserProfile } from './UserProfile';
 import { supabase } from '../supabaseClient';
 import { getLocalizedProductName, getCategoryLabel } from '../utils/faithDate';
+import { getProductSlug, findProductBySlugOrId, parseCurrentRoute, navigateToRoute } from '../navigation';
 import { 
   ShoppingBag, CheckCircle, Video, FileText, BadgeHelp, Award, ShieldCheck, 
   MapPin, Phone, Mail, User, Percent, CreditCard, ChevronRight, X, Play, RefreshCw, Star, Info,
@@ -77,42 +78,62 @@ export const CustomerPanel: React.FC = () => {
     }
   }, [currentCustomer]);
 
+  // Synchronize internal CustomerPanel tabs and product selection with URL path/hash
+  useEffect(() => {
+    const syncCustomerRoute = () => {
+      const route = parseCurrentRoute();
+      
+      if (route.type === 'product-details' && route.productSlugOrId) {
+        const matched = findProductBySlugOrId(route.productSlugOrId, products);
+        if (matched) {
+          setDetailedProduct(matched);
+          setCurrentTab('product-details');
+          setActiveDetailImg(matched.images[0]);
+          setIsVideoPlaying(false);
+          return;
+        }
+      }
+      
+      if (route.type === 'shop') {
+        setCurrentTab('shop');
+        setDetailedProduct(null);
+      } else if (route.type === 'tracking') {
+        setCurrentTab('tracking');
+        setDetailedProduct(null);
+      } else if (route.type === 'profile') {
+        setCurrentTab('profile');
+        setDetailedProduct(null);
+      } else if (route.type === 'home' || route.type === 'login' || route.type === 'partner' || route.type === 'admin') {
+        setCurrentTab('home');
+        setDetailedProduct(null);
+      }
+    };
+
+    syncCustomerRoute();
+
+    window.addEventListener('popstate', syncCustomerRoute);
+    window.addEventListener('hashchange', syncCustomerRoute);
+    window.addEventListener('routechange', syncCustomerRoute);
+    
+    return () => {
+      window.removeEventListener('popstate', syncCustomerRoute);
+      window.removeEventListener('hashchange', syncCustomerRoute);
+      window.removeEventListener('routechange', syncCustomerRoute);
+    };
+  }, [products]);
+
   // Protect Customer Profile private view
   useEffect(() => {
     const checkProfileSession = async () => {
       if (currentTab === 'profile') {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          window.location.hash = '#/login';
-          setShowAuthTab('customer');
-          setCurrentTab('home');
+          navigateToRoute({ type: 'login' });
         }
       }
     };
     checkProfileSession();
   }, [currentTab, setShowAuthTab]);
-
-  // Support swipe back gesture and physical back button navigation on mobile devices
-  useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      if (currentTab === 'product-details') {
-        setCurrentTab(previousTab);
-        setDetailedProduct(null);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [currentTab, previousTab]);
-
-  // Handle direct tab clicks to automatically pop the product-detail history state
-  useEffect(() => {
-    if (currentTab !== 'product-details' && window.history.state && window.history.state.isProductDetail) {
-      window.history.back();
-    }
-  }, [currentTab]);
   
   const [referralCodeInput, setReferralCodeInput] = useState('');
   const [referralError, setReferralError] = useState('');
@@ -300,18 +321,8 @@ export const CustomerPanel: React.FC = () => {
   };
 
   const openProductDetails = (product: Product) => {
-    if (currentTab !== 'product-details') {
-      setPreviousTab(currentTab);
-    }
-    setDetailedProduct(product);
-    setCurrentTab('product-details');
-    setActiveDetailImg(product.images[0]);
-    setIsVideoPlaying(false);
-
-    // Push states to browser history so swipe-back gesture and physical device back button work correctly
-    if (!window.history.state || !window.history.state.isProductDetail) {
-      window.history.pushState({ isProductDetail: true, productId: product.id }, '');
-    }
+    const slug = getProductSlug(product);
+    navigateToRoute({ type: 'product-details', productSlugOrId: slug });
   };
 
   const handleQuickBuyNow = (product: Product) => {
@@ -326,7 +337,7 @@ export const CustomerPanel: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
           
           {/* Logo Brand */}
-          <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentTab('home'); setIsMobileMenuOpen(false); }}>
+          <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { navigateToRoute({ type: 'home' }); setIsMobileMenuOpen(false); }}>
             <span className="bg-emerald-600 text-white p-2.5 rounded-xl font-bold text-lg md:text-xl tracking-tight leading-none shadow-sm shadow-emerald-900/15">দ</span>
             <div className="flex flex-col animate-fade-in">
               <span className="font-display font-bold text-base md:text-lg leading-none tracking-wider text-emerald-800">DADAJAN</span>
@@ -340,21 +351,21 @@ export const CustomerPanel: React.FC = () => {
           <nav className="hidden md:flex items-center gap-6">
             <button 
               id="customer-nav-home"
-              onClick={() => { setCurrentTab('home'); setSelectedCategory('All'); }}
+              onClick={() => { navigateToRoute({ type: 'home' }); setSelectedCategory('All'); }}
               className={`font-semibold text-sm transition-colors ${currentTab === 'home' ? 'text-emerald-700 border-b-2 border-emerald-600 pb-1' : 'text-slate-600 hover:text-emerald-700'}`}
             >
               {lang === 'bn' ? 'হোম পেইজ' : 'Home'}
             </button>
             <button 
               id="customer-nav-shop"
-              onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
+              onClick={() => { navigateToRoute({ type: 'shop' }); setSelectedCategory('All'); }}
               className={`font-semibold text-sm transition-colors ${currentTab === 'shop' ? 'text-emerald-700 border-b-2 border-emerald-600 pb-1' : 'text-slate-600 hover:text-emerald-700'}`}
             >
               {lang === 'bn' ? 'সকল পণ্য সংগ্রহ' : 'Our Collection'}
             </button>
             <button 
               id="customer-nav-tracking"
-              onClick={() => setCurrentTab('tracking')}
+              onClick={() => navigateToRoute({ type: 'tracking' })}
               className={`font-semibold text-sm transition-colors ${currentTab === 'tracking' ? 'text-emerald-700 border-b-2 border-emerald-600 pb-1' : 'text-slate-600 hover:text-emerald-700'}`}
             >
               {lang === 'bn' ? 'অর্ডার ট্র্যাক ও ট্র্যাকিং' : 'Order Tracking'}
@@ -362,7 +373,7 @@ export const CustomerPanel: React.FC = () => {
             {currentCustomer && (
               <button 
                 id="customer-nav-profile"
-                onClick={() => setCurrentTab('profile')}
+                onClick={() => navigateToRoute({ type: 'profile' })}
                 className={`font-semibold text-sm transition-colors ${currentTab === 'profile' ? 'text-emerald-700 border-b-2 border-emerald-600 pb-1' : 'text-slate-600 hover:text-emerald-700'}`}
               >
                 {lang === 'bn' ? 'আমার প্রোফাইল' : 'My Profile'}
@@ -378,7 +389,7 @@ export const CustomerPanel: React.FC = () => {
                 <>
                   <button 
                     id="btn-customer-profile-nav"
-                    onClick={() => setCurrentTab('profile')}
+                    onClick={() => navigateToRoute({ type: 'profile' })}
                     className={`flex flex-col text-right hover:text-emerald-700 transition-colors cursor-pointer mr-1.5 ${currentTab === 'profile' ? 'text-emerald-700' : 'text-stone-800'}`}
                   >
                     <span className="text-xs font-bold leading-tight flex items-center gap-1">⚙️ {currentCustomer.name}</span>
@@ -386,7 +397,7 @@ export const CustomerPanel: React.FC = () => {
                   </button>
                   <button 
                     id="btn-customer-logout"
-                    onClick={async () => { await logout(); setCurrentTab('home'); }}
+                    onClick={async () => { await logout(); navigateToRoute({ type: 'home' }); }}
                     className="bg-stone-100 hover:bg-stone-200 text-stone-700 font-extrabold text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border border-stone-200"
                   >
                     {lang === 'bn' ? 'লগআউট' : 'Logout'}
@@ -395,7 +406,7 @@ export const CustomerPanel: React.FC = () => {
               ) : (
                 <button 
                   id="btn-customer-login-trigger"
-                  onClick={() => setShowAuthTab('customer')}
+                  onClick={() => navigateToRoute({ type: 'login' })}
                   className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
                 >
                   <User className="w-3.5 h-3.5 text-emerald-700" />
@@ -422,7 +433,7 @@ export const CustomerPanel: React.FC = () => {
             {/* Desktop-only Shop Button */}
             <button 
               id="btn-nav-buy-direct"
-              onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
+              onClick={() => { navigateToRoute({ type: 'shop' }); setSelectedCategory('All'); }}
               className="hidden md:flex bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-sm px-4.5 py-2.5 rounded-lg transition-all shadow-sm items-center gap-1 cursor-pointer font-bold"
             >
               {lang === 'bn' ? 'বাজার করুন' : 'Shop Now'}
@@ -452,7 +463,7 @@ export const CustomerPanel: React.FC = () => {
             <div className="space-y-6">
               {/* Drawer Header Brand */}
               <div className="flex items-center justify-between pb-4 border-b border-stone-100">
-                <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => { setCurrentTab('home'); setIsMobileMenuOpen(false); }}>
+                <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => { navigateToRoute({ type: 'home' }); setIsMobileMenuOpen(false); }}>
                   <span className="bg-emerald-600 text-white p-2 rounded-lg font-bold text-base leading-none">দ</span>
                   <span className="font-display font-bold text-md tracking-wider text-emerald-800">DADAJAN</span>
                 </div>
@@ -482,7 +493,7 @@ export const CustomerPanel: React.FC = () => {
                         {currentCustomer.area}
                       </span>
                       <button 
-                        onClick={() => { setCurrentTab('profile'); setIsMobileMenuOpen(false); }}
+                        onClick={() => { navigateToRoute({ type: 'profile' }); setIsMobileMenuOpen(false); }}
                         className="text-emerald-700 hover:text-emerald-850 hover:underline font-bold"
                       >
                         {lang === 'bn' ? 'আমার প্রোফাইল ⚙️' : 'My Profile ⚙️'}
@@ -497,7 +508,7 @@ export const CustomerPanel: React.FC = () => {
                         : 'Sign in to review details, tracking, and manage your personal details seamlessly.'}
                     </p>
                     <button 
-                      onClick={() => { setShowAuthTab('customer'); setIsMobileMenuOpen(false); }}
+                      onClick={() => { navigateToRoute({ type: 'login' }); setIsMobileMenuOpen(false); }}
                       className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-extrabold rounded-xl transition-all shadow-sm cursor-pointer"
                     >
                       {lang === 'bn' ? 'অ্যাকাউন্টে প্রবেশ করুন ✅' : 'Sign In To Account ✅'}
@@ -513,7 +524,7 @@ export const CustomerPanel: React.FC = () => {
                 </span>
                 
                 <button 
-                  onClick={() => { setCurrentTab('home'); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { navigateToRoute({ type: 'home' }); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
                   className={`w-full py-3 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${currentTab === 'home' ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`}
                 >
                   <span>{lang === 'bn' ? 'হোম পেইজ' : 'Home'}</span>
@@ -521,7 +532,7 @@ export const CustomerPanel: React.FC = () => {
                 </button>
 
                 <button 
-                  onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { navigateToRoute({ type: 'shop' }); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
                   className={`w-full py-3 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${currentTab === 'shop' ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`}
                 >
                   <span>{lang === 'bn' ? 'সকল পণ্য সংগ্রহ' : 'Our Collection'}</span>
@@ -529,7 +540,7 @@ export const CustomerPanel: React.FC = () => {
                 </button>
 
                 <button 
-                  onClick={() => { setCurrentTab('tracking'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { navigateToRoute({ type: 'tracking' }); setIsMobileMenuOpen(false); }}
                   className={`w-full py-3 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${currentTab === 'tracking' ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`}
                 >
                   <span>{lang === 'bn' ? 'অর্ডার ট্র্যাক ও ট্র্যাকিং' : 'Order Tracking'}</span>
@@ -538,7 +549,7 @@ export const CustomerPanel: React.FC = () => {
 
                 {currentCustomer && (
                   <button 
-                    onClick={() => { setCurrentTab('profile'); setIsMobileMenuOpen(false); }}
+                    onClick={() => { navigateToRoute({ type: 'profile' }); setIsMobileMenuOpen(false); }}
                     className={`w-full py-3 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${currentTab === 'profile' ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`}
                   >
                     <span>{lang === 'bn' ? 'আমার প্রোফাইল' : 'My Profile'}</span>
@@ -551,7 +562,7 @@ export const CustomerPanel: React.FC = () => {
             {/* Bottom buttons of Mobile drawer */}
             <div className="pt-6 border-t border-stone-100 space-y-3.5 text-center">
               <button 
-                onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
+                onClick={() => { navigateToRoute({ type: 'shop' }); setSelectedCategory('All'); setIsMobileMenuOpen(false); }}
                 className="w-full py-3.5 bg-amber-400 hover:bg-amber-300 text-stone-900 font-extrabold rounded-xl text-xs uppercase tracking-wider shadow-md transition-all text-center block cursor-pointer"
               >
                 🛒 {lang === 'bn' ? 'সরাসরি বাজার করুন' : 'Shop Collections'}
@@ -559,7 +570,7 @@ export const CustomerPanel: React.FC = () => {
               
               {currentCustomer && (
                 <button 
-                  onClick={async () => { await logout(); setCurrentTab('home'); setIsMobileMenuOpen(false); }}
+                  onClick={async () => { await logout(); navigateToRoute({ type: 'home' }); setIsMobileMenuOpen(false); }}
                   className="w-full py-2.5 bg-stone-50 hover:bg-stone-100 text-stone-600 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 border border-stone-200 cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5 text-stone-500" />
@@ -606,7 +617,7 @@ export const CustomerPanel: React.FC = () => {
 
                 <div className="flex flex-wrap gap-4 pt-2">
                   <button 
-                    onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
+                    onClick={() => { navigateToRoute({ type: 'shop' }); setSelectedCategory('All'); }}
                     className="px-8 py-3.5 bg-amber-450 hover:bg-amber-300 text-[#01221a] font-extrabold rounded-xl shadow-lg hover:shadow-amber-400/10 hover:scale-[1.01] transition-all text-xs uppercase cursor-pointer"
                   >
                     {lang === 'bn' ? 'স্টোর ঘুরে দেখুন 🛒' : 'Start Shopping'}
@@ -772,7 +783,7 @@ export const CustomerPanel: React.FC = () => {
                 return (
                   <div 
                     key={cat}
-                    onClick={() => { setCurrentTab('shop'); setSelectedCategory(cat); }}
+                    onClick={() => { navigateToRoute({ type: 'shop' }); setSelectedCategory(cat); }}
                     className="group bg-white rounded-2xl border border-stone-200/70 p-4 text-center cursor-pointer shadow-xs hover:shadow-md hover:border-emerald-600/30 transition-all flex flex-col justify-between h-full hover:-translate-y-1 duration-300"
                   >
                     <div className="space-y-3">
@@ -817,7 +828,7 @@ export const CustomerPanel: React.FC = () => {
                 </h3>
               </div>
               <button 
-                onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
+                onClick={() => { navigateToRoute({ type: 'shop' }); setSelectedCategory('All'); }}
                 className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer whitespace-nowrap"
               >
                 <span>{lang === 'bn' ? 'সকল পণ্য সংগ্রহ' : 'Explore Store'}</span>
@@ -1076,7 +1087,7 @@ export const CustomerPanel: React.FC = () => {
                   SUNNAH10
                 </span>
                 <button 
-                  onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
+                  onClick={() => { navigateToRoute({ type: 'shop' }); setSelectedCategory('All'); }}
                   className="mt-4 px-6 py-2.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-lg text-xs uppercase cursor-pointer w-full text-center transition-all animate-none"
                 >
                   {lang === 'bn' ? 'অফারটি নিন ⚡' : 'Claim Now'}
