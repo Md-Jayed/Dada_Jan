@@ -57,6 +57,7 @@ export interface Partner {
   role: 'Imam' | 'Dealer' | 'Local Partner';
   mobile: string;
   email: string;
+  password?: string; // Optional password for email/password login
   referralCode: string;
   district: string;
   area: string;
@@ -97,6 +98,7 @@ export interface Customer {
   name: string;
   mobile: string;
   email: string;
+  password?: string; // Optional password for email/password login
   district: string;
   area: string;
   address: string;

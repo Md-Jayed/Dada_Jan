@@ -5,6 +5,7 @@ import {
   MapPin, Play, Star, Info, MessageSquare, Heart, Share2, AlertCircle, ShoppingCart, HelpCircle,
   Phone
 } from 'lucide-react';
+import { formatFaithDate, getLocalizedProductName, getCategoryLabel } from '../utils/faithDate';
 
 interface ProductDetailsPageProps {
   product: Product;
@@ -175,7 +176,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
               ) : (
                 <img 
                   src={activeImg} 
-                  alt={product.name} 
+                  alt={getLocalizedProductName(product.name, lang)} 
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                 />
@@ -275,7 +276,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-stone-100 pb-4">
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-1 text-[10px] font-extrabold text-amber-700 bg-amber-50 rounded-lg uppercase tracking-wider">
-                  {product.category}
+                  {getCategoryLabel(product.category, lang)}
                 </span>
                 <span className="text-xs font-mono text-stone-400">
                   {product.sku}
@@ -307,7 +308,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
             <div>
               <h1 className="text-xl md:text-3xl font-display font-extrabold text-stone-900 tracking-tight leading-tight">
-                {product.name}
+                {getLocalizedProductName(product.name, lang)}
               </h1>
 
               <div className="flex items-center gap-3.5 mt-3">
@@ -323,6 +324,22 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                   🛡️ {lang === 'bn' ? '১০০% বিশুদ্ধতার নিশ্চয়তা' : '100% Purity'}
                 </span>
               </div>
+            </div>
+
+            {/* Premium Brand-Consistent Faith-Based Sealing Timestamp */}
+            <div className="bg-[#FAF9F5] border-l-4 border-emerald-700 p-4.5 rounded-r-2xl border border-stone-200/60 shadow-xs space-y-2">
+              <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                <span className="p-1 bg-emerald-50 rounded-lg">🟢</span>
+                <span>{lang === 'bn' ? 'ইসলামিক চন্দ্র বর্ষপঞ্জি ও আজকের দিনপঞ্জি' : 'Islamic Lunar Sealing Calendar'}</span>
+              </div>
+              <p className="text-xs font-mono text-slate-700 font-extrabold leading-relaxed">
+                {formatFaithDate(new Date(), lang)}
+              </p>
+              <p className="text-[11px] text-stone-500 leading-snug">
+                {lang === 'bn'
+                  ? 'দাদাজানের সকল উপাদান সরাসরি প্রাকৃতিক উৎসস্থল এবং সম্মানিত ইমাম শরীকাদের সশরীরে উপস্থিতিতে গুণগত মান নিশ্চিত করে পরিবেশন করা হয়।'
+                  : 'DADAJAN premium food products are harvested from raw ecosystems and sealed under authentic Sunnah guidelines for your family wellness.'}
+              </p>
             </div>
 
             {/* Custom pricing display */}
@@ -406,8 +423,8 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                   id="details-page-btn-whatsapp"
                   href={`https://wa.me/8801712345678?text=${encodeURIComponent(
                     lang === 'bn'
-                      ? `আসসালামু আলাইকুম! আমি ড্যাডিজান থেকে "${product.name}" অর্ডার করতে চাই।\nপরিমাণ: ${selectedQuantity} টি\nমূল্য: ${setPriceFormat(product.price * selectedQuantity)}`
-                      : `Assalamu Alaikum! I want to order "${product.name}" from DADAJAN.\nQuantity: ${selectedQuantity}\nPrice: ${setPriceFormat(product.price * selectedQuantity)}`
+                      ? `আসসালামু আলাইকুম! আমি দাদাজান থেকে "${getLocalizedProductName(product.name, lang)}" অর্ডার করতে চাই।\nপরিমাণ: ${selectedQuantity} টি\nমূল্য: ${setPriceFormat(product.price * selectedQuantity)}`
+                      : `Assalamu Alaikum! I want to order "${getLocalizedProductName(product.name, lang)}" from DADAJAN.\nQuantity: ${selectedQuantity}\nPrice: ${setPriceFormat(product.price * selectedQuantity)}`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"

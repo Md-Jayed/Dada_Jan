@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, Partner, Order, Withdrawal, AppNotification, Customer, OrderItem } from './types';
 import { loadDB, saveDB, calculateCommissions, getLocalTime } from './dbStore';
+import { supabase } from './supabaseClient';
+import { performSystemLogout } from './lib/auth/logout';
 
 interface AppContextType {
   products: Product[];
@@ -37,6 +39,22 @@ interface AppContextType {
   clearNotifications: (role: 'Admin' | 'Partner', partnerId?: string) => void;
   markNotificationsAsRead: (role: 'Admin' | 'Partner', partnerId?: string) => void;
   addCustomer: (cust: Omit<Customer, 'id' | 'joinDate'>) => void;
+
+  // Authentic Auth States & Actions
+  currentCustomer: Customer | null;
+  currentPartner: Partner | null;
+  isAdminLoggedIn: boolean;
+  isAuthLoading: boolean;
+  loginCustomer: (mobile: string) => Customer | null;
+  loginCustomerWithEmail: (email: string, pass: string) => Customer | null;
+  registerCustomer: (customer: Omit<Customer, 'id' | 'joinDate'>) => Customer;
+  loginPartner: (mobile: string) => Partner | null;
+  loginPartnerWithEmail: (email: string, pass: string) => Partner | null;
+  registerPartner: (partner: Omit<Partner, 'id' | 'walletBalance' | 'pendingBalance' | 'totalWithdrawn' | 'verifiedStatus'>, autoLogin?: boolean) => Partner;
+  loginAdmin: (email: string, pass: string) => boolean;
+  logout: () => Promise<void> | void;
+  showAuthTab: 'customer' | 'partner' | 'admin' | null;
+  setShowAuthTab: (tab: 'customer' | 'partner' | 'admin' | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -47,6 +65,250 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Initialize to Maulana Mufti Abdur Rahman as default sim
   const [selectedPartnerId, setSelectedPartnerId] = useState('imam-1');
   const [lang, setLang] = useState<'bn' | 'en'>('bn');
+
+  // Auth Routing Overrides
+  const [showAuthTab, setShowAuthTab] = useState<'customer' | 'partner' | 'admin' | null>(null);
+
+  // Authentic Auth States
+  const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(() => {
+    const saved = localStorage.getItem('currentCustomer');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [currentPartner, setCurrentPartner] = useState<Partner | null>(() => {
+    const saved = localStorage.getItem('currentPartner');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('isAdminLoggedIn') === 'true';
+  });
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(false);
+
+  // Subscribe to onAuthStateChange and handle session persistence / auto refresh
+  useEffect(() => {
+    let active = true;
+    
+    const syncSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!active) return;
+        if (session?.user) {
+          const userEmail = session.user.email;
+          if (userEmail) {
+            if (userEmail === 'rashedkhanibnnazim@gmail.com') {
+              setIsAdminLoggedIn(true);
+            } else {
+              const foundPartner = dbState.partners.find(p => p.email.toLowerCase() === userEmail.toLowerCase());
+              if (foundPartner) {
+                setCurrentPartner(foundPartner);
+                setSelectedPartnerId(foundPartner.id);
+              } else {
+                const foundCust = dbState.customers.find(c => c.email.toLowerCase() === userEmail.toLowerCase());
+                if (foundCust) {
+                  setCurrentCustomer(foundCust);
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("onAuthStateChange dynamic session sync error:", err);
+      }
+    };
+
+    syncSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`Supabase Auth state changed: ${event}`);
+      if (!active) return;
+      
+      if (event === 'SIGNED_OUT') {
+        setCurrentCustomer(null);
+        setCurrentPartner(null);
+        setIsAdminLoggedIn(false);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          const userEmail = session.user.email;
+          if (userEmail) {
+            if (userEmail === 'rashedkhanibnnazim@gmail.com') {
+              setIsAdminLoggedIn(true);
+            } else {
+              const foundPartner = dbState.partners.find(p => p.email.toLowerCase() === userEmail.toLowerCase());
+              if (foundPartner) {
+                setCurrentPartner(foundPartner);
+                setSelectedPartnerId(foundPartner.id);
+              } else {
+                const foundCust = dbState.customers.find(c => c.email.toLowerCase() === userEmail.toLowerCase());
+                if (foundCust) {
+                  setCurrentCustomer(foundCust);
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [dbState.partners, dbState.customers]);
+
+  // Sync to localStorage
+  useEffect(() => {
+    if (currentCustomer) {
+      localStorage.setItem('currentCustomer', JSON.stringify(currentCustomer));
+    } else {
+      localStorage.removeItem('currentCustomer');
+    }
+  }, [currentCustomer]);
+
+  useEffect(() => {
+    if (currentPartner) {
+      localStorage.setItem('currentPartner', JSON.stringify(currentPartner));
+    } else {
+      localStorage.removeItem('currentPartner');
+    }
+  }, [currentPartner]);
+
+  useEffect(() => {
+    localStorage.setItem('isAdminLoggedIn', isAdminLoggedIn ? 'true' : 'false');
+  }, [isAdminLoggedIn]);
+
+  const loginCustomer = (mobile: string): Customer | null => {
+    const customer = dbState.customers.find(c => c.mobile === mobile);
+    if (customer) {
+      setCurrentCustomer(customer);
+      return customer;
+    }
+    return null;
+  };
+
+  const loginCustomerWithEmail = (email: string, pass: string): Customer | null => {
+    const customer = dbState.customers.find(c => c.email.toLowerCase() === email.toLowerCase());
+    if (customer) {
+      const expectedPassword = customer.password || '123456';
+      if (expectedPassword === pass) {
+        setCurrentCustomer(customer);
+        return customer;
+      }
+    }
+    return null;
+  };
+
+  const registerCustomer = (custInfo: Omit<Customer, 'id' | 'joinDate'>): Customer => {
+    const nextId = `cust-${dbState.customers.length + 1}`;
+    const newCust: Customer = {
+      ...custInfo,
+      id: nextId,
+      joinDate: new Date().toISOString().split('T')[0]
+    };
+    setDbState(prev => ({
+      ...prev,
+      customers: [...prev.customers, newCust]
+    }));
+    setCurrentCustomer(newCust);
+    return newCust;
+  };
+
+  const loginPartner = (mobile: string): Partner | null => {
+    const partner = dbState.partners.find(p => p.mobile === mobile);
+    if (partner) {
+      setCurrentPartner(partner);
+      setSelectedPartnerId(partner.id);
+      return partner;
+    }
+    return null;
+  };
+
+  const loginPartnerWithEmail = (email: string, pass: string): Partner | null => {
+    const partner = dbState.partners.find(p => p.email.toLowerCase() === email.toLowerCase());
+    if (partner) {
+      const expectedPassword = partner.password || '123456';
+      if (expectedPassword === pass) {
+        setCurrentPartner(partner);
+        setSelectedPartnerId(partner.id);
+        return partner;
+      }
+    }
+    return null;
+  };
+
+  const registerPartner = (partnerInfo: Omit<Partner, 'id' | 'walletBalance' | 'pendingBalance' | 'totalWithdrawn' | 'verifiedStatus'>, autoLogin: boolean = true): Partner => {
+    const nextId = `partner-${dbState.partners.length + 1}`;
+    const baseCode = partnerInfo.name.replace(/\s+/g, '').replace(/[^a-zA-Z]/g, '').slice(0, 4).toUpperCase() || 'PART';
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    const referralCode = `${baseCode}-${randomSuffix}`;
+
+    const newPartner: Partner = {
+      ...partnerInfo,
+      id: nextId,
+      referralCode,
+      walletBalance: 0,
+      pendingBalance: 0,
+      totalWithdrawn: 0,
+      verifiedStatus: 'Pending'
+    };
+
+    setDbState(prev => ({
+      ...prev,
+      partners: [...prev.partners, newPartner],
+      notifications: [
+        {
+          id: `not-adm-new-p-${Date.now()}`,
+          type: 'Inquiry',
+          targetRole: 'Admin',
+          title: 'নতুন অংশীদার নিবন্ধন আবেদন',
+          description: `${partnerInfo.bengaliName || partnerInfo.name} (${lang === 'bn' ? partnerInfo.role : partnerInfo.role}) পোর্টালে নিবন্ধনের আবেদন জমা দিয়েছেন।`,
+          timestamp: getLocalTime(),
+          read: false
+        },
+        ...prev.notifications
+      ]
+    }));
+    
+    if (autoLogin) {
+      setCurrentPartner(newPartner);
+      setSelectedPartnerId(newPartner.id);
+    }
+    return newPartner;
+  };
+
+  const loginAdmin = (email: string, pass: string): boolean => {
+    if (email.trim() === 'rashedkhanibnnazim@gmail.com' && pass.trim() === 'hjahIe2NhIrza8uC') {
+      setIsAdminLoggedIn(true);
+      return true;
+    }
+    return false;
+  };
+
+  const logout = async () => {
+    setIsAuthLoading(true);
+    try {
+      const result = await performSystemLogout();
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      // Enforce total state flush
+      setCurrentCustomer(null);
+      setCurrentPartner(null);
+      setIsAdminLoggedIn(false);
+
+      // Redirect to homepage /
+      if (typeof window !== 'undefined') {
+        window.location.hash = '';
+        window.history.pushState(null, '', '/');
+      }
+      setActivePanelState('customer');
+      setShowAuthTab(null);
+    } catch (err: any) {
+      console.error("Logout process exception:", err);
+      alert(lang === 'bn' ? "লগআউট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।" : "Logout failed. Please try again.");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
 
   useEffect(() => {
     saveDB(dbState);
@@ -612,7 +874,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       approveWithdrawal,
       clearNotifications,
       markNotificationsAsRead,
-      addCustomer
+      addCustomer,
+      currentCustomer,
+      currentPartner,
+      isAdminLoggedIn,
+      isAuthLoading,
+      loginCustomer,
+      loginCustomerWithEmail,
+      registerCustomer,
+      loginPartner,
+      loginPartnerWithEmail,
+      registerPartner,
+      loginAdmin,
+      logout,
+      showAuthTab,
+      setShowAuthTab
     }}>
       {children}
     </AppContext.Provider>

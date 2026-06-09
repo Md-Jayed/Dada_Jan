@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
 import { Product, Partner, Order, Withdrawal } from '../types';
+import { supabase } from '../supabaseClient';
+import { SupabaseRLSConsole } from './SupabaseRLSConsole';
 import { 
   Users, Layers, ShoppingCart, Percent, TrendingUp, AlertTriangle, Shield, 
   MapPin, Plus, Edit3, Trash2, Check, X, FileText, ArrowDown, ArrowUp, Activity, PieChart
@@ -21,11 +23,26 @@ export const AdminPanel: React.FC = () => {
     editProduct, 
     deleteProduct, 
     approveWithdrawal,
-    lang 
+    lang,
+    isAdminLoggedIn,
+    logout,
+    setShowAuthTab
   } = useApp();
 
+  // Dynamic Session Protection Guard
+  useEffect(() => {
+    const checkAdminSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.hash = '#/login';
+        setShowAuthTab('admin');
+      }
+    };
+    checkAdminSession();
+  }, [setShowAuthTab]);
+
   // Admin subsystem sub-tabs
-  const [activeSubTab, setActiveSubTab] = useState<'verify' | 'commissions' | 'inventory' | 'orders' | 'products' | 'finance' | 'analytics'>('analytics');
+  const [activeSubTab, setActiveSubTab] = useState<'verify' | 'commissions' | 'inventory' | 'orders' | 'products' | 'finance' | 'analytics' | 'database'>('analytics');
   
   // Active simulated ERP role
   const [erpRole, setErpRole] = useState<'Super Admin' | 'Inventory Manager' | 'Finance Manager' | 'Customer Support'>('Super Admin');
@@ -155,20 +172,31 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {/* Roles Select element (Requested "Super Admin, Inventory Manager, Support", etc) */}
-        <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-          <Shield className="w-4 h-4 text-amber-505" />
-          <span className="text-xs text-slate-400 font-medium">Active Department:</span>
-          <select
-            id="erp-role-switcher"
-            value={erpRole}
-            onChange={(e) => setErpRole(e.target.value as any)}
-            className="bg-slate-950 border border-slate-700 text-amber-400 font-bold px-2.5 py-0.5 rounded focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs"
-          >
-            <option value="Super Admin">Super Admin (সুপার এডমিন)</option>
-            <option value="Inventory Manager">Inventory Manager (ইনভেন্টরি)</option>
-            <option value="Finance Manager">Finance Manager (হিসাবরক্ষক)</option>
-            <option value="Customer Support">Customer Support (সার্ভিস)</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+            <Shield className="w-4 h-4 text-amber-505" />
+            <span className="text-xs text-slate-400 font-medium">Active Department:</span>
+            <select
+              id="erp-role-switcher"
+              value={erpRole}
+              onChange={(e) => setErpRole(e.target.value as any)}
+              className="bg-slate-950 border border-slate-700 text-amber-400 font-bold px-2.5 py-0.5 rounded focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+            >
+              <option value="Super Admin">Super Admin (সুপার এডমিন)</option>
+              <option value="Inventory Manager">Inventory Manager (ইনভেন্টরি)</option>
+              <option value="Finance Manager">Finance Manager (হিসাবরক্ষক)</option>
+              <option value="Customer Support">Customer Support (সার্ভিস)</option>
+            </select>
+          </div>
+          {isAdminLoggedIn && (
+            <button
+              id="btn-admin-logout"
+              onClick={async () => { await logout(); }}
+              className="px-3 py-2 bg-red-653 hover:bg-red-700 text-white border border-red-800 rounded-lg text-xs font-bold font-sans cursor-pointer transition-all"
+            >
+              Logout
+            </button>
+          )}
         </div>
       </div>
 
@@ -184,7 +212,7 @@ export const AdminPanel: React.FC = () => {
                 : 'text-stone-600 hover:bg-stone-50'
             }`}
           >
-            📊 Performance Analytics
+            {lang === 'bn' ? '📊 পারফরম্যান্স অ্যানালিটিক্স' : '📊 Performance Analytics'}
           </button>
           <button
             id="tab-erp-verify"
@@ -195,7 +223,7 @@ export const AdminPanel: React.FC = () => {
                 : 'text-stone-600 hover:bg-stone-50'
             }`}
           >
-            🕌 Partner Verification
+            {lang === 'bn' ? '🕌 পার্টনার ভেরিফিকেশন' : '🕌 Partner Verification'}
             {pendingPartners.length > 0 && (
               <span className="bg-red-500 text-white text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-bold">
                 {pendingPartners.length}
@@ -211,7 +239,7 @@ export const AdminPanel: React.FC = () => {
                 : 'text-stone-600 hover:bg-stone-50'
             }`}
           >
-            🗺️ Order Geo-Assignment
+            {lang === 'bn' ? '🗺️ ভূ-স্থানিক অর্ডার বন্টন' : '🗺️ Order Geo-Assignment'}
           </button>
           <button
             id="tab-erp-commissions"
@@ -222,7 +250,7 @@ export const AdminPanel: React.FC = () => {
                 : 'text-stone-600 hover:bg-stone-50'
             }`}
           >
-            🪙 Auto Commission Splits
+            {lang === 'bn' ? '🪙 স্বয়ংক্রিয় কমিশন বন্টন' : '🪙 Auto Commission Splits'}
           </button>
           <button
             id="tab-erp-inventory"
@@ -233,7 +261,7 @@ export const AdminPanel: React.FC = () => {
                 : 'text-stone-600 hover:bg-stone-50'
             }`}
           >
-            📦 Hub Inventory Management
+            {lang === 'bn' ? '📦 হাব ইনভেন্টরি ম্যানেজমেন্ট' : '📦 Hub Inventory Management'}
           </button>
           <button
             id="tab-erp-products"
@@ -244,7 +272,7 @@ export const AdminPanel: React.FC = () => {
                 : 'text-stone-600 hover:bg-stone-50'
             }`}
           >
-            ⚙️ Product Catalog Manager
+            {lang === 'bn' ? '⚙️ প্রোডাক্ট ক্যাটালগ ম্যানেজার' : '⚙️ Product Catalog Manager'}
           </button>
           <button
             id="tab-erp-finance"
@@ -255,12 +283,23 @@ export const AdminPanel: React.FC = () => {
                 : 'text-stone-600 hover:bg-stone-50'
             }`}
           >
-            💵 Financial Payouts Ledger
+            {lang === 'bn' ? '💵 পেআউট ও ফাইন্যান্স বই' : '💵 Financial Payouts Ledger'}
             {pendingWithdrawals.length > 0 && (
               <span className="bg-red-500 text-white text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-bold">
                 {pendingWithdrawals.length}
               </span>
             )}
+          </button>
+          <button
+            id="tab-erp-database"
+            onClick={() => setActiveSubTab('database')}
+            className={`py-3 px-4 rounded-t-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'database' 
+                ? 'bg-amber-600 text-white border-b-2 border-amber-600' 
+                : 'text-stone-600 hover:bg-stone-50'
+            }`}
+          >
+            {lang === 'bn' ? '🛡️ সুপাবেস আরএলএস ডাটা সিকিউরিটি' : '🛡️ Supabase RLS Policies'}
           </button>
         </div>
       </div>
@@ -1005,6 +1044,18 @@ export const AdminPanel: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeSubTab === 'database' && (
+          <div className="max-w-7xl mx-auto px-4 py-8 animate-fade-in text-left">
+            <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm mb-6">
+              <h3 className="font-display font-extrabold text-lg text-stone-900 mb-1">🛡️ Database Access Control & Row Level Security (RLS)</h3>
+              <p className="text-xs text-stone-500">
+                Configure and verify PostgreSQL schemas, tables access, and policies under DadaJan ERP. Admins bypass all limitations. Tested against production credentials.
+              </p>
+            </div>
+            <SupabaseRLSConsole currentRole="admin" />
           </div>
         )}
       </div>

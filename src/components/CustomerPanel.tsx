@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
 import { Product, OrderItem, Order } from '../types';
 import { ProductDetailsPage } from './ProductDetailsPage';
+import { UserProfile } from './UserProfile';
+import { supabase } from '../supabaseClient';
+import { getLocalizedProductName, getCategoryLabel } from '../utils/faithDate';
 import { 
   ShoppingBag, CheckCircle, Video, FileText, BadgeHelp, Award, ShieldCheck, 
   MapPin, Phone, Mail, User, Percent, CreditCard, ChevronRight, X, Play, RefreshCw, Star, Info
@@ -14,12 +17,15 @@ export const CustomerPanel: React.FC = () => {
     orders, 
     placeOrder, 
     setPriceFormat, 
-    lang 
+    lang,
+    currentCustomer,
+    setShowAuthTab,
+    logout
   } = useApp();
 
   // Navigation states
-  const [currentTab, setCurrentTab] = useState<'home' | 'shop' | 'tracking' | 'product-details'>('home');
-  const [previousTab, setPreviousTab] = useState<'home' | 'shop' | 'tracking'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'shop' | 'tracking' | 'product-details' | 'profile'>('home');
+  const [previousTab, setPreviousTab] = useState<'home' | 'shop' | 'tracking' | 'profile'>('home');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -42,6 +48,45 @@ export const CustomerPanel: React.FC = () => {
     district: 'Chattogram',
     area: 'Boalkhali'
   });
+
+  useEffect(() => {
+    if (currentCustomer) {
+      setShippingInfo({
+        name: currentCustomer.name,
+        mobile: currentCustomer.mobile,
+        email: currentCustomer.email,
+        address: currentCustomer.address,
+        district: currentCustomer.district,
+        area: currentCustomer.area
+      });
+      setReferralCodeInput(currentCustomer.referredBy || '');
+    } else {
+      setShippingInfo({
+        name: 'Ariful Islam Chowdhury',
+        mobile: '01815566778',
+        email: 'arif.chowdhury@outlook.com',
+        address: 'Chowdhury Bari, Ward 3, Boalkhali Hub Area',
+        district: 'Chattogram',
+        area: 'Boalkhali'
+      });
+      setReferralCodeInput('');
+    }
+  }, [currentCustomer]);
+
+  // Protect Customer Profile private view
+  useEffect(() => {
+    const checkProfileSession = async () => {
+      if (currentTab === 'profile') {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          window.location.hash = '#/login';
+          setShowAuthTab('customer');
+          setCurrentTab('home');
+        }
+      }
+    };
+    checkProfileSession();
+  }, [currentTab, setShowAuthTab]);
   
   const [referralCodeInput, setReferralCodeInput] = useState('');
   const [referralError, setReferralError] = useState('');
@@ -254,9 +299,48 @@ export const CustomerPanel: React.FC = () => {
             >
               {lang === 'bn' ? 'অর্ডার ট্র্যাক ও ট্র্যাকিং' : 'Order Tracking'}
             </button>
+            {currentCustomer && (
+              <button 
+                id="customer-nav-profile"
+                onClick={() => setCurrentTab('profile')}
+                className={`font-semibold text-sm transition-colors ${currentTab === 'profile' ? 'text-emerald-700 border-b-2 border-emerald-600 pb-1' : 'text-slate-600 hover:text-emerald-700'}`}
+              >
+                {lang === 'bn' ? 'আমার প্রোফাইল' : 'My Profile'}
+              </button>
+            )}
           </nav>
 
           <div className="flex items-center gap-3">
+            {/* User Login/Profile Action */}
+            {currentCustomer ? (
+              <div className="flex items-center gap-2">
+                <button 
+                  id="btn-customer-profile-nav"
+                  onClick={() => setCurrentTab('profile')}
+                  className={`flex flex-col text-right hover:text-emerald-700 transition-colors cursor-pointer mr-1.5 ${currentTab === 'profile' ? 'text-emerald-700' : 'text-stone-850'}`}
+                >
+                  <span className="text-xs font-bold leading-tight flex items-center gap-1">⚙️ {currentCustomer.name}</span>
+                  <span className="text-[9px] font-mono text-emerald-705 font-bold uppercase tracking-wider">{currentCustomer.area}</span>
+                </button>
+                <button 
+                  id="btn-customer-logout"
+                  onClick={async () => { await logout(); setCurrentTab('home'); }}
+                  className="bg-stone-100 hover:bg-stone-200 text-stone-700 font-extrabold text-[10px] sm:text-xs py-2 px-3 rounded-xl transition-all cursor-pointer border border-stone-200"
+                >
+                  {lang === 'bn' ? 'লগআউট' : 'Logout'}
+                </button>
+              </div>
+            ) : (
+              <button 
+                id="btn-customer-login-trigger"
+                onClick={() => setShowAuthTab('customer')}
+                className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-extrabold text-xs px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+              >
+                <User className="w-3.5 h-3.5 text-emerald-700" />
+                <span>{lang === 'bn' ? 'প্রবেশ' : 'Sign In'}</span>
+              </button>
+            )}
+
             <button 
               id="btn-customer-cart-icon"
               onClick={() => setIsCartOpen(true)}
@@ -272,7 +356,7 @@ export const CustomerPanel: React.FC = () => {
             <button 
               id="btn-nav-buy-direct"
               onClick={() => { setCurrentTab('shop'); setSelectedCategory('All'); }}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-xs sm:text-sm px-4.5 py-2.5 rounded-lg transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-xs sm:text-sm px-4.5 py-2.5 rounded-lg transition-all shadow-sm flex items-center gap-1 cursor-pointer font-bold"
             >
               {lang === 'bn' ? 'বাজার করুন' : 'Shop Now'}
             </button>
@@ -440,7 +524,7 @@ export const CustomerPanel: React.FC = () => {
                     : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                 }`}
               >
-                {cat === 'All' ? (lang === 'bn' ? 'সকল পণ্য' : 'All Products') : (lang === 'bn' ? cat : cat)}
+                {getCategoryLabel(cat, lang)}
               </button>
             ))}
           </div>
@@ -475,7 +559,7 @@ export const CustomerPanel: React.FC = () => {
                 <div className="relative bg-stone-50 h-48 overflow-hidden shrink-0 cursor-pointer" onClick={() => openProductDetails(p)}>
                   <img
                     src={p.images[0]}
-                    alt={p.name}
+                    alt={getLocalizedProductName(p.name, lang)}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
                   />
@@ -504,12 +588,12 @@ export const CustomerPanel: React.FC = () => {
                 {/* Content */}
                 <div className="p-4 flex-1 flex flex-col justify-between">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">{p.category}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">{getCategoryLabel(p.category, lang)}</span>
                     <h3 
                       onClick={() => openProductDetails(p)}
                       className="font-display font-extrabold text-sm text-stone-900 hover:text-emerald-850 cursor-pointer mt-1 mb-2 line-clamp-2 h-10 leading-snug"
                     >
-                      {p.name}
+                      {getLocalizedProductName(p.name, lang)}
                     </h3>
                     <div className="text-[11px] text-stone-500 mb-4 line-clamp-1">
                       📍 {p.origin}
@@ -574,7 +658,14 @@ export const CustomerPanel: React.FC = () => {
                 onClick={() => {
                   const target = orders.find(o => o.id.toUpperCase() === activeTrackingOrderId.trim().toUpperCase());
                   if (target) {
-                    setOrderCompleteData(target);
+                    // RLS POLICY ENFORCEMENT: Customer can only access their own data
+                    if (currentCustomer && (target.customerEmail.toLowerCase() !== currentCustomer.email.toLowerCase() && target.customerMobile !== currentCustomer.mobile)) {
+                      alert(lang === 'bn' 
+                        ? 'অ্যাক্সেস অস্বীকৃত: আপনি কেবল নিজের অর্ডার ট্র্যাক করতে পারেন (Supabase RLS Policy সীমাবদ্ধতা)।' 
+                        : 'Access Denied: You can only query your own orders (Enforced by Supabase RLS Policy Isolation).');
+                    } else {
+                      setOrderCompleteData(target);
+                    }
                   } else {
                     alert(lang === 'bn' ? 'এই কোড সম্বলিত কোনো অর্ডার খুঁজে পাওয়া যায়নি।' : 'Order ID not found in system storage.');
                   }
@@ -682,6 +773,11 @@ export const CustomerPanel: React.FC = () => {
           lang={lang}
           partners={partners}
         />
+      )}
+
+      {/* 4.6 Secure User Profile View */}
+      {currentTab === 'profile' && (
+        <UserProfile />
       )}
 
       {/* 5. Product Details Modal */}
@@ -910,8 +1006,8 @@ export const CustomerPanel: React.FC = () => {
                         className="w-16 h-16 object-cover rounded-xl bg-stone-50 border border-stone-100 shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <span className="text-[9px] font-bold text-amber-700 tracking-wider block uppercase">{item.product.category}</span>
-                        <h4 className="font-bold text-xs text-stone-900 truncate leading-snug mb-1">{item.product.name}</h4>
+                        <span className="text-[9px] font-bold text-amber-700 tracking-wider block uppercase">{getCategoryLabel(item.product.category, lang)}</span>
+                        <h4 className="font-bold text-xs text-stone-900 truncate leading-snug mb-1">{getLocalizedProductName(item.product.name, lang)}</h4>
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-1.5 bg-stone-100 border border-stone-200 rounded-lg p-1 scale-90 -ml-1">
                             <button 

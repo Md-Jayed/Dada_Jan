@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
 import { Partner, Order, Withdrawal, AppNotification, Customer } from '../types';
+import { UserProfile } from './UserProfile';
+import { supabase } from '../supabaseClient';
 import { 
   Users, Wallet, Share2, Printer, Download, Bell, Send, CheckCircle, 
-  MapPin, AlertCircle, RefreshCw, QrCode, Phone, Landmark, HelpCircle, ArrowUpRight
+  MapPin, AlertCircle, RefreshCw, QrCode, Phone, Landmark, HelpCircle, ArrowUpRight, User
 } from 'lucide-react';
 
 export const PartnerPanel: React.FC = () => {
@@ -18,13 +20,28 @@ export const PartnerPanel: React.FC = () => {
     requestWithdrawal, 
     markNotificationsAsRead, 
     clearNotifications,
-    lang 
+    lang,
+    currentPartner,
+    logout,
+    setShowAuthTab
   } = useApp();
+
+  // Dynamic Session Protection Guard
+  useEffect(() => {
+    const checkPartnerSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.hash = '#/login';
+        setShowAuthTab('partner');
+      }
+    };
+    checkPartnerSession();
+  }, [setShowAuthTab]);
 
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawMethod, setWithdrawMethod] = useState<'bKash' | 'Nagad' | 'Bank Account'>('bKash');
   const [withdrawDetails, setWithdrawDetails] = useState('');
-  const [activeTab, setActiveTab] = useState<'dash' | 'qr' | 'customers' | 'wallet' | 'notif'>('dash');
+  const [activeTab, setActiveTab] = useState<'dash' | 'qr' | 'customers' | 'wallet' | 'notif' | 'profile'>('dash');
 
   // Find active simulated partner
   const partner = partners.find(p => p.id === selectedPartnerId);
@@ -94,7 +111,7 @@ export const PartnerPanel: React.FC = () => {
       {/* Elder-friendly Header Panel */}
       <div className="bg-emerald-850 text-white p-6 md:p-8 rounded-b-[2rem] shadow-md relative overflow-hidden">
         <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none">
-          <users className="w-64 h-64 text-white" />
+          <Users className="w-64 h-64 text-white" />
         </div>
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between relative z-10 gap-4">
           <div className="flex items-center gap-4 text-left">
@@ -103,10 +120,10 @@ export const PartnerPanel: React.FC = () => {
             </div>
             <div>
               <span className="inline-flex items-center gap-1 bg-emerald-800 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-1">
-                🕌 দাদাজান {partner.role === 'Imam' ? 'ইমাম অংশীদার' : 'ডিজিটাল ডিলার'}
+                🕌 {lang === 'bn' ? `দাদাজান ${partner.role === 'Imam' ? 'ইমাম অংশীদার' : 'ডিজিটাল ডিলার'}` : `DADAJAN ${partner.role === 'Imam' ? 'Imam Partner' : 'Digital Dealer'}`}
               </span>
-              <h1 className="text-xl md:text-2xl font-bold font-display leading-tight">{partner.bengaliName}</h1>
-              <p className="text-xs text-emerald-200 mt-1 font-mono">ID: {partner.id} | এলাকা: {partner.area}, {partner.district}</p>
+              <h1 className="text-xl md:text-2xl font-bold font-display leading-tight">{lang === 'bn' ? partner.bengaliName : partner.name}</h1>
+              <p className="text-xs text-emerald-200 mt-1 font-mono">ID: {partner.id} | {lang === 'bn' ? `এলাকা: ${partner.area}, ${partner.district}` : `Hub: ${partner.area}, ${partner.district}`}</p>
             </div>
           </div>
 
@@ -115,7 +132,9 @@ export const PartnerPanel: React.FC = () => {
             <span className={`px-3 py-1 rounded-full text-xs font-bold leading-none ${
               partner.verifiedStatus === 'Approved' ? 'bg-amber-500 text-emerald-950' : 'bg-red-500 text-white'
             }`}>
-              {partner.verifiedStatus === 'Approved' ? '✓ নিবন্ধিত ও সক্রিয়' : 'আবেদন প্রক্রিয়াধীন'}
+              {partner.verifiedStatus === 'Approved' 
+                ? (lang === 'bn' ? '✓ নিবন্ধিত ও সক্রিয়' : '✓ Active & Verified') 
+                : (lang === 'bn' ? 'আবেদন প্রক্রিয়াধীন' : 'Pending Verification')}
             </span>
             <button
               id="btn-partner-notif-bell"
@@ -129,13 +148,22 @@ export const PartnerPanel: React.FC = () => {
                 </span>
               )}
             </button>
+            {currentPartner && (
+              <button
+                id="btn-partner-logout"
+                onClick={async () => { await logout(); }}
+                className="px-3.5 py-2 bg-red-500 hover:bg-red-600 hover:border-red-500 text-white border border-red-600 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0"
+              >
+                {lang === 'bn' ? 'লগআউট' : 'Logout'}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Elder-friendly Navigation tabs (Language Bengali First) */}
       <div className="max-w-7xl mx-auto px-4 mt-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 p-1 bg-white border border-stone-200 rounded-2xl gap-1">
+        <div className="grid grid-cols-2 md:grid-cols-6 p-1 bg-white border border-stone-200 rounded-2xl gap-1">
           <button
             id="tab-partner-dash"
             onClick={() => setActiveTab('dash')}
@@ -144,7 +172,7 @@ export const PartnerPanel: React.FC = () => {
             }`}
           >
             <Wallet className="w-5 h-5" />
-            <span>আজকের আয়-ব্যয়</span>
+            <span>{lang === 'bn' ? 'আজকের আয়-ব্যয়' : 'My Earnings'}</span>
           </button>
           <button
             id="tab-partner-qr"
@@ -154,7 +182,7 @@ export const PartnerPanel: React.FC = () => {
             }`}
           >
             <QrCode className="w-5 h-5" />
-            <span>আমার কিউআর কোড</span>
+            <span>{lang === 'bn' ? 'আমার কিউআর কোড' : 'My QR Code'}</span>
           </button>
           <button
             id="tab-partner-customers"
@@ -164,7 +192,7 @@ export const PartnerPanel: React.FC = () => {
             }`}
           >
             <Users className="w-5 h-5" />
-            <span>আমার শুভাকাঙ্ক্ষী</span>
+            <span>{lang === 'bn' ? 'আমার শুভাকাঙ্ক্ষী' : 'My Referrals'}</span>
           </button>
           <button
             id="tab-partner-wallet"
@@ -174,17 +202,27 @@ export const PartnerPanel: React.FC = () => {
             }`}
           >
             <Send className="w-5 h-5" />
-            <span>টাকা উত্তোলন করুন</span>
+            <span>{lang === 'bn' ? 'টাকা উত্তোলন করুন' : 'Withdrawal'}</span>
           </button>
           <button
             id="tab-partner-notif"
             onClick={() => setActiveTab('notif')}
-            className={`col-span-2 md:col-span-1 py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+            className={`py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
               activeTab === 'notif' ? 'bg-emerald-800 text-white shadow' : 'text-stone-600 hover:bg-stone-50'
             }`}
           >
             <Bell className="w-5 h-5" />
-            <span>নোটিফিকেশন সেন্টার ({unreadNotifications.length})</span>
+            <span>{lang === 'bn' ? `নোটিফিকেশন অ্যালার্ট (${unreadNotifications.length})` : `Notifications (${unreadNotifications.length})`}</span>
+          </button>
+          <button
+            id="tab-partner-profile"
+            onClick={() => setActiveTab('profile')}
+            className={`col-span-2 md:col-span-1 py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+              activeTab === 'profile' ? 'bg-emerald-800 text-white shadow' : 'text-stone-600 hover:bg-stone-50'
+            }`}
+          >
+            <User className="w-5 h-5" />
+            <span>{lang === 'bn' ? 'আমার প্রোফাইল' : 'My Profile'}</span>
           </button>
         </div>
       </div>
@@ -344,7 +382,22 @@ export const PartnerPanel: React.FC = () => {
 
         {/* TAB 3: CUSTOMER MANAGEMENT */}
         {activeTab === 'customers' && (
-          <div className="space-y-6 text-left">
+          <div className="space-y-6 text-left animate-fade-in">
+            
+            {/* RLS Policy Notice Box */}
+            <div className="bg-stone-900 text-stone-100 rounded-3xl p-5 border border-emerald-900/40 shadow-sm flex items-start gap-3">
+              <span className="text-xl">🛡️</span>
+              <div>
+                <h4 className="font-bold text-xs text-emerald-400 uppercase tracking-wider font-mono">
+                  SUPABASE RLS ACTIVE • ENFORCED
+                </h4>
+                <p className="text-[11px] text-stone-400 leading-relaxed mt-1 font-normal">
+                  {lang === 'bn' 
+                    ? 'পোস্টগ্রিস RLS পলিসি (policy "dealer_assigned_customers_only") এই পোর্টালে আপনার সংশ্লিষ্ট রিফারেল বা এরিয়ার বাইরের গ্রাহক ডাটা সম্পূর্ণ গোপন রেখেছে।' 
+                    : 'PostgreSQL RLS (policy "dealer_assigned_customers_only") is actively enforced on your connection. Customer records outside your direct referral tree are digitally isolated and inaccessible.'}
+                </p>
+              </div>
+            </div>
             
             {/* 2.3 Personally Introduced Customers (Lifetime passive Commission split) */}
             <div className="bg-white rounded-3xl p-6 border border-stone-200/60 shadow-sm">
@@ -438,7 +491,23 @@ export const PartnerPanel: React.FC = () => {
 
         {/* TAB 4: WALLET & WITHDRAW FUNDS */}
         {activeTab === 'wallet' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+          <div className="space-y-6">
+            {/* Wallet RLS Isolation Notice */}
+            <div className="bg-stone-900 text-stone-100 rounded-3xl p-5 border border-emerald-900/40 shadow-sm flex items-start gap-3 text-left">
+              <span className="text-xl">🔒</span>
+              <div>
+                <h4 className="font-bold text-xs text-emerald-400 uppercase tracking-wider font-mono">
+                  SUPABASE WALLET LEDGER SECURED
+                </h4>
+                <p className="text-[11px] text-stone-400 leading-relaxed mt-1 font-normal">
+                  {lang === 'bn' 
+                    ? 'পোস্টগ্রিস RLS পলিসি (policy "dealer_own_withdrawals") আপনার ক্যাশআউট ইতিহাস এবং লাভ-ক্ষতির খতিয়ান সম্পূর্ণ পৃথক রেখেছে। অন্য ডিলারদের এই ডাটা এক্সেস করার কোনো সুযোগ নেই।' 
+                    : 'PostgreSQL RLS (policy "dealer_own_withdrawals") actively blocks cross-wallet access. Only the transaction logging statements bound to your authenticated identity container will be evaluated.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
             
             {/* Withdraw form */}
             <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm">
@@ -538,12 +607,13 @@ export const PartnerPanel: React.FC = () => {
               )}
             </div>
           </div>
+          </div>
         )}
 
         {/* TAB 5: NOTIFICATIONS */}
         {activeTab === 'notif' && (
           <div className="max-w-2xl mx-auto bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm text-left">
-            <div className="flex items-center justify-between pb-4 border-b border-stone-200 mb-4">
+            <div className="flex items-center justify-between pb-4 border-b border-stone-200 mb-4 font-extrabold text-[#065f46]">
               <h3 className="font-display font-bold text-base text-stone-900 flex items-center gap-1.5">
                 <Bell className="w-5 h-5 text-amber-500" />
                 নোটিফিকেশন অ্যালার্ট সেন্টার
@@ -580,6 +650,11 @@ export const PartnerPanel: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+
+        {/* TAB 6: SECURE PROFILE PREFERENCES */}
+        {activeTab === 'profile' && (
+          <UserProfile />
         )}
       </div>
     </div>

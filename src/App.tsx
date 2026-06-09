@@ -1,42 +1,169 @@
 import React, { useEffect } from 'react';
 import { AppProvider, useApp } from './AppContext';
-import { RoleSwitcher } from './components/RoleSwitcher';
 import { CustomerPanel } from './components/CustomerPanel';
 import { PartnerPanel } from './components/PartnerPanel';
 import { AdminPanel } from './components/AdminPanel';
+import { AuthPage } from './components/AuthPage';
+import { supabase } from './supabaseClient';
 import { AlertCircle, Terminal, Info, BellRing } from 'lucide-react';
 
 function DashboardLayout() {
-  const { activePanel, notifications, lang } = useApp();
+  const { activePanel, setActivePanel, notifications, lang, setLang, showAuthTab, setShowAuthTab, logout, isAuthLoading } = useApp();
+
+  // Validate session/user robustness (especially handling deleted users)
+  useEffect(() => {
+    const validateSupabaseUser = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          console.warn("Supabase auth check found an error:", error.message);
+          if (
+            error.message.includes('sub claim') || 
+            error.message.includes('does not exist') || 
+            error.status === 403 || 
+            error.status === 401
+          ) {
+            console.warn("Clearing obsolete or invalid session cookie/localStorage token.");
+            await supabase.auth.signOut();
+            logout();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch user session details dynamically:", err);
+      }
+    };
+    validateSupabaseUser();
+  }, [logout]);
+
+  // Handle URL router /login checking & dynamic session validation with supabase.auth.getSession()
+  useEffect(() => {
+    const handleRouteAndSessionCheck = async () => {
+      // 1. Check if URL pathname or hash represents "/login"
+      if (window.location.hash === '#/login' || window.location.pathname === '/login') {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setShowAuthTab('customer');
+        } else {
+          // If they already have a session, clean the path
+          window.location.hash = '';
+          setShowAuthTab(null);
+        }
+      }
+
+      // 2. Protect private page viewports: partner & admin panels
+      if (activePanel === 'partner' || activePanel === 'admin') {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          // If no session, redirect to /login
+          window.location.hash = '#/login';
+          setShowAuthTab(activePanel === 'partner' ? 'partner' : 'customer');
+        }
+      }
+    };
+
+    handleRouteAndSessionCheck();
+
+    const handleHashChange = () => {
+      handleRouteAndSessionCheck();
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activePanel, setShowAuthTab]);
 
   // Find unread notifications to flash briefly at the bottom to indicate real-time background split sync
   const unreadCount = notifications.filter(n => !n.read).length;
   const latestNotification = notifications.filter(n => !n.read)[0];
 
+  if (isAuthLoading) {
+    return (
+      <div className="fixed inset-0 bg-[#FAF9F5]/90 backdrop-blur-xs flex flex-col items-center justify-center z-50 text-center p-6 select-none font-sans">
+        <div className="relative flex items-center justify-center mb-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-stone-200 border-t-emerald-600"></div>
+          <span className="absolute text-xl">🍯</span>
+        </div>
+        <h3 className="font-display font-extrabold text-stone-900 text-lg">
+          {lang === 'bn' ? 'অনুরোধ প্রক্রিয়াকরণ করা হচ্ছে...' : 'Processing Secure Request...'}
+        </h3>
+        <p className="text-xs text-stone-500 mt-1 uppercase tracking-wider font-mono">
+          {lang === 'bn' ? 'অনুগ্রহ করে অপেক্ষা করুন - নিরাপদ লগআউট সক্রিয় হচ্ছে' : 'Enforcing cryptographic state flush, please wait...'}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF9F5] select-none text-slate-800">
-      {/* Simulation Sandbox Switcher */}
-      <RoleSwitcher />
-
       {/* Main Panel Content Render Area */}
       <main className="flex-1">
-        {activePanel === 'customer' && <CustomerPanel />}
-        {activePanel === 'partner' && <PartnerPanel />}
-        {activePanel === 'admin' && <AdminPanel />}
+        {showAuthTab ? (
+          <AuthPage 
+            initialTab={showAuthTab}
+            onBack={() => setShowAuthTab(null)}
+            onSuccess={() => setShowAuthTab(null)}
+          />
+        ) : (
+          <>
+            {activePanel === 'customer' && <CustomerPanel />}
+            {activePanel === 'partner' && <PartnerPanel />}
+            {activePanel === 'admin' && <AdminPanel />}
+          </>
+        )}
       </main>
 
-
-
       {/* Humble Footer containing info */}
-      <footer className="bg-slate-900 text-slate-400 py-6 px-4 text-center text-xs border-t border-slate-800 font-mono mt-auto shrink-0 relative z-15">
-        <p className="font-sans font-medium text-slate-350">
-          DadaJan Digital Systems &copy; 2026. Certified Shari'ah Compliance and Lab Tested Logistics.
-        </p>
-        <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest flex items-center justify-center gap-1.5">
-          <span>SECURE SECURE PROTOCOLS ENFORCED</span>
+      <footer className="bg-slate-900 text-slate-400 py-8 px-4 md:px-8 border-t border-slate-800 mt-auto shrink-0 relative z-15 text-left font-sans">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-6 pb-6 border-b border-slate-800/60">
+          <div>
+            <h5 className="font-display font-black text-white text-base tracking-wider uppercase">DADAJAN Faith Commerce</h5>
+            <p className="text-xs text-slate-400 mt-1 max-w-md font-normal leading-relaxed">
+              DadaJan Digital Systems &copy; 2026. Certified Shari'ah Compliance and Lab Tested organic procurement, distributing premium honey and blackseed products across Bangladesh.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
+            <button
+              onClick={() => { setActivePanel('customer'); setShowAuthTab(null); }}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activePanel === 'customer' 
+                  ? 'bg-emerald-600 text-white shadow' 
+                  : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/50'
+              }`}
+            >
+              🛒 {lang === 'bn' ? 'কাস্টমার স্টোর' : 'Customer Store'}
+            </button>
+            <button
+              onClick={() => { setActivePanel('partner'); }}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activePanel === 'partner' 
+                  ? 'bg-emerald-650 text-white shadow' 
+                  : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/50'
+              }`}
+            >
+              Imam & Dealer Portal
+            </button>
+            <button
+              onClick={() => { setActivePanel('admin'); }}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activePanel === 'admin' 
+                  ? 'bg-amber-600 text-white shadow' 
+                  : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/50'
+              }`}
+            >
+              Admin ERP Portal
+            </button>
+            <button
+              onClick={() => setLang(lang === 'bn' ? 'en' : 'bn')}
+              className="px-2.5 py-2 rounded-xl text-xs font-bold bg-slate-804 hover:bg-slate-800 text-emerald-400 hover:text-emerald-300 border border-slate-700/50 transition-all cursor-pointer"
+            >
+              🌐 {lang === 'bn' ? 'English (EN)' : 'বাংলা (BN)'}
+            </button>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto pt-4 flex flex-col md:flex-row items-center justify-between gap-2 text-[10px] text-slate-500 font-mono tracking-wider uppercase">
+          <span>SECURE POSTGRESQL PROTOCOLS ENFORCED</span>
           <span>•</span>
           <span>COMMISSION AUTO SPLITTER ACTIVE</span>
-        </p>
+        </div>
       </footer>
     </div>
   );
