@@ -6,7 +6,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { AuthPage } from './components/AuthPage';
 import { supabase } from './supabaseClient';
 import { AlertCircle, Terminal, Info, BellRing } from 'lucide-react';
-import { parseCurrentRoute, navigateToRoute } from './navigation';
+import { parseCurrentRoute, navigateToRoute, updateDocumentMetadata } from './navigation';
 
 function DashboardLayout() {
   const { activePanel, setActivePanel, notifications, lang, setLang, showAuthTab, setShowAuthTab, logout, isAuthLoading } = useApp();
@@ -74,6 +74,27 @@ function DashboardLayout() {
       window.removeEventListener('routechange', syncRouteWithState);
     };
   }, [setActivePanel, setShowAuthTab]);
+
+  // Dynamic document title update for Portals / Auth routes
+  useEffect(() => {
+    const route = parseCurrentRoute();
+    if (route.type === 'login' || showAuthTab) {
+      updateDocumentMetadata({
+        title: lang === 'bn' ? 'লগইন করুন | দাদাজান' : 'Sign In | Dadajan Store',
+        description: 'Secure authenticate page for Dadejan customers, partners, and administrators.'
+      });
+    } else if (route.type === 'partner' || activePanel === 'partner') {
+      updateDocumentMetadata({
+        title: lang === 'bn' ? 'ইমাম ও ডিলার পোর্টাল | দাদাজান' : 'Imam & Dealer Portal | Dadajan',
+        description: 'Authorized access portal for verified Islamic Imams and regional distribution partners.'
+      });
+    } else if (route.type === 'admin' || activePanel === 'admin') {
+      updateDocumentMetadata({
+        title: lang === 'bn' ? 'অ্যাডমিন ড্যাশবোর্ড | দাদাজান' : 'Admin Panel | Dadajan Hub',
+        description: 'Management controls for products, stock synchronization, active logistics, and partnership requests.'
+      });
+    }
+  }, [activePanel, showAuthTab, lang]);
 
   // Find unread notifications to flash briefly at the bottom to indicate real-time background split sync
   const unreadCount = notifications.filter(n => !n.read).length;

@@ -92,3 +92,53 @@ export function navigateToRoute(route: ParsedRoute, replace = false) {
   // Notify active listeners
   window.dispatchEvent(new CustomEvent('routechange', { detail: { route } }));
 }
+
+// Helper function to update document title and head meta tags dynamically
+export function updateDocumentMetadata(options: {
+  title: string;
+  description?: string;
+  imageUrl?: string;
+  url?: string;
+}) {
+  const { title, description, imageUrl, url } = options;
+  
+  // 1. Update document title
+  document.title = title;
+
+  // Helper to find or create meta tag
+  const setMetaTag = (attributeName: string, attributeValue: string, contentValue: string) => {
+    try {
+      let meta = document.querySelector(`meta[${attributeName}="${attributeValue}"]`);
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute(attributeName, attributeValue);
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', contentValue);
+    } catch (e) {
+      console.error('Failed to set meta tag', e);
+    }
+  };
+
+  // 2. Update meta description and OpenGraph/Twitter tags
+  const defaultDesc = 'Dadajan - Premium Halal Organic Products & Islamic Lifestyle Essentials';
+  const desc = description || defaultDesc;
+  
+  setMetaTag('name', 'description', desc);
+  setMetaTag('property', 'og:description', desc);
+  setMetaTag('name', 'twitter:description', desc);
+
+  setMetaTag('property', 'og:title', title);
+  setMetaTag('name', 'twitter:title', title);
+
+  if (imageUrl) {
+    setMetaTag('property', 'og:image', imageUrl);
+    setMetaTag('name', 'twitter:image', imageUrl);
+  }
+
+  const currentUrl = url || window.location.href;
+  setMetaTag('property', 'og:url', currentUrl);
+
+  setMetaTag('property', 'og:type', 'website');
+  setMetaTag('name', 'twitter:card', 'summary_large_image');
+}

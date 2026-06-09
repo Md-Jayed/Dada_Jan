@@ -5,7 +5,7 @@ import { ProductDetailsPage } from './ProductDetailsPage';
 import { UserProfile } from './UserProfile';
 import { supabase } from '../supabaseClient';
 import { getLocalizedProductName, getCategoryLabel } from '../utils/faithDate';
-import { getProductSlug, findProductBySlugOrId, parseCurrentRoute, navigateToRoute } from '../navigation';
+import { getProductSlug, findProductBySlugOrId, parseCurrentRoute, navigateToRoute, updateDocumentMetadata } from '../navigation';
 import { 
   ShoppingBag, CheckCircle, Video, FileText, BadgeHelp, Award, ShieldCheck, 
   MapPin, Phone, Mail, User, Percent, CreditCard, ChevronRight, X, Play, RefreshCw, Star, Info,
@@ -121,6 +121,46 @@ export const CustomerPanel: React.FC = () => {
       window.removeEventListener('routechange', syncCustomerRoute);
     };
   }, [products]);
+
+  // Dynamic document title & meta tags update on tab/detailedProduct change
+  useEffect(() => {
+    let title = 'Dadajan - Premium Halal Organic Products & Islamic Lifestyle Essentials';
+    let description = 'Explore Dadajan, your premier destination for preeminent organic honey, pure ghee, olive oil, and premium Islamic lifestyle items designed for quality conscious users.';
+    let imageUrl = '';
+    
+    if (currentTab === 'product-details' && detailedProduct) {
+      const prodName = getLocalizedProductName(detailedProduct, lang);
+      title = lang === 'bn' 
+        ? `${prodName} | দাদাজান স্টোর` 
+        : `${prodName} | Dadajan Premium Store`;
+      description = detailedProduct.description || `${prodName} - High quality, pure and authenticated product from Dadajan. Click to details for pricing and orders.`;
+      if (detailedProduct.images && detailedProduct.images[0]) {
+        imageUrl = detailedProduct.images[0];
+      }
+    } else if (currentTab === 'shop') {
+      title = lang === 'bn' 
+        ? 'সকল পণ্য সংগ্রহ | দাদাজান' 
+        : 'Our Collection | Dadajan Premium Store';
+      description = 'Check out our curated list of 100% natural, halal foods and traditional lifestyle items at Dadajan.';
+    } else if (currentTab === 'tracking') {
+      title = lang === 'bn' 
+        ? 'অর্ডার ট্র্যাকিং | দাদাজান' 
+        : 'Order Tracking | Dadajan';
+      description = 'Track your active or historic Dadajan orders instantly using your Order ID.';
+    } else if (currentTab === 'profile') {
+      title = lang === 'bn' 
+        ? 'আমার প্রোফাইল | দাদাজান' 
+        : 'My Profile | Dadajan';
+      description = 'Manage your account details, delivery address, and active referrals at Dadajan.';
+    }
+
+    updateDocumentMetadata({
+      title,
+      description,
+      imageUrl,
+      url: window.location.href
+    });
+  }, [currentTab, detailedProduct, lang]);
 
   // Protect Customer Profile private view
   useEffect(() => {
