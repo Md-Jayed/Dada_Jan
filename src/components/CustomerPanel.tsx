@@ -23,7 +23,9 @@ export const CustomerPanel: React.FC = () => {
     lang,
     currentCustomer,
     setShowAuthTab,
-    logout
+    logout,
+    categories: dbCategories,
+    coupons
   } = useApp();
 
   // Navigation states
@@ -129,7 +131,7 @@ export const CustomerPanel: React.FC = () => {
     let imageUrl = '';
     
     if (currentTab === 'product-details' && detailedProduct) {
-      const prodName = getLocalizedProductName(detailedProduct, lang);
+      const prodName = getLocalizedProductName(detailedProduct.name, lang);
       title = lang === 'bn' 
         ? `${prodName} | দাদাজান স্টোর` 
         : `${prodName} | Dadajan Premium Store`;
@@ -207,12 +209,16 @@ export const CustomerPanel: React.FC = () => {
 
   const categories = [
     'All',
-    'Dry Food',
-    'Beauty & Cosmetics',
-    'Fashion',
-    'Perfume',
-    'Gadgets & Electronics',
-    'Spices'
+    ...Array.from(new Set([
+      'Dry Food',
+      'Beauty & Cosmetics',
+      'Fashion',
+      'Perfume',
+      'Gadgets & Electronics',
+      'Spices',
+      ...(dbCategories || []).filter(c => c.isActive).map(c => c.name),
+      ...products.map(p => p.category).filter(Boolean)
+    ]))
   ];
 
   // Homepage selective lists with fallbacks
@@ -284,7 +290,7 @@ export const CustomerPanel: React.FC = () => {
 
   const cartSubtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
 
-  // Validate Referral Code
+  // Validate Referral Code or Coupon
   const handleValidateReferral = () => {
     if (!referralCodeInput) {
       setReferralError(lang === 'bn' ? 'অনুগ্রহ করে কোডটি লিখুন।' : 'Please enter code.');
@@ -292,12 +298,49 @@ export const CustomerPanel: React.FC = () => {
       setReferralDiscount(0);
       return;
     }
+
+    // Check WooCommerce coupons collection
+    const cleanedCode = referralCodeInput.toUpperCase().trim();
+    const coupon = (coupons || []).find(c => c.code === cleanedCode);
+    if (coupon) {
+      if (!coupon.isActive) {
+        setReferralError(lang === 'bn' ? 'এই কুপন কোডটি এখন সক্রিয় নয়।' : 'This promo coupon code is inactive.');
+        setReferralSuccess('');
+        setReferralDiscount(0);
+        return;
+      }
+      if (cartSubtotal < (coupon.minOrderAmount || 0)) {
+        setReferralError(lang === 'bn' 
+          ? `এই কোডটির জন্য নূন্যতম ৳${coupon.minOrderAmount} কেনাকাটা প্রয়োজন।` 
+          : `This coupon requires a minimum purchase of ৳${coupon.minOrderAmount}.`
+        );
+        setReferralSuccess('');
+        setReferralDiscount(0);
+        return;
+      }
+      
+      let calcDiscount = 0;
+      if (coupon.discountType === 'Percentage') {
+        calcDiscount = Math.round((cartSubtotal * coupon.amount) / 100);
+      } else {
+        calcDiscount = coupon.amount;
+      }
+      
+      setReferralSuccess(lang === 'bn'
+        ? `কুপন "${coupon.code}" সফলভাবে যুক্ত হয়েছে! ৳${calcDiscount} ছাড় পাবেন।`
+        : `Coupon "${coupon.code}" applied! You get ৳${calcDiscount} off.`
+      );
+      setReferralError('');
+      setReferralDiscount(calcDiscount);
+      return;
+    }
+
     const partner = partners.find(p => p.referralCode.toLowerCase() === referralCodeInput.toLowerCase());
     if (partner) {
       if (partner.verifiedStatus === 'Approved') {
         const title = partner.role === 'Imam' 
           ? (lang === 'bn' ? `সম্মানিত ${partner.bengaliName} (ইমাম)` : `Revered ${partner.name} (Imam)`)
-          : (lang === 'bn' ? `${partner.bengaliName} (ডিলার)` : `${partner.name} (Dealer)`);
+          : (lang === 'bn' ? `${partner.bengaliName || partner.name} (ডিলার)` : `${partner.name} (Dealer)`);
         setReferralSuccess(lang === 'bn' 
           ? `${title} এর পক্ষ থেকে ৳১০০ বিশেষ ছাড় দেওয়া হয়েছে!` 
           : `${title} recommendation verified! 100 BDT reward applied.`);
@@ -309,7 +352,7 @@ export const CustomerPanel: React.FC = () => {
         setReferralDiscount(0);
       }
     } else {
-      setReferralError(lang === 'bn' ? 'ভুল রেফারেল কোড। সঠিক কোড দিন।' : 'Invalid Referral Code. Try again.');
+      setReferralError(lang === 'bn' ? 'ভুল রেফারেল বা কুপন কোড। সঠিক কোড দিন।' : 'Invalid Referral or Coupon Code. Try again.');
       setReferralSuccess('');
       setReferralDiscount(0);
     }

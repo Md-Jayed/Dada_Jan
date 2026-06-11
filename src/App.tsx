@@ -128,9 +128,15 @@ function DashboardLayout() {
               setShowAuthTab(null);
               navigateToRoute({ type: 'home' });
             }}
-            onSuccess={() => {
+            onSuccess={(tab) => {
               setShowAuthTab(null);
-              navigateToRoute({ type: 'home' });
+              if (tab === 'partner') {
+                navigateToRoute({ type: 'partner' });
+              } else if (tab === 'admin') {
+                navigateToRoute({ type: 'admin' });
+              } else {
+                navigateToRoute({ type: 'home' });
+              }
             }}
           />
         ) : (

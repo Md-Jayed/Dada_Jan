@@ -18,6 +18,23 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+
+    // Dynamic wildcard fallback for non-production SPA routing (e.g. reload on /product/xxx doesn't fail with 404)
+    app.get("*", async (req, res, next) => {
+      const url = req.originalUrl;
+      // Skip API and files containing dot extensions
+      if (url.startsWith('/api') || url.includes('.')) {
+        return next();
+      }
+      try {
+        const fs = await import('fs');
+        let template = fs.readFileSync(path.resolve(process.cwd(), "index.html"), "utf-8");
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      } catch (e) {
+        next(e);
+      }
+    });
   } else {
     // In production mode, serve compiled assets and route fallback
     const distPath = path.join(process.cwd(), "dist");

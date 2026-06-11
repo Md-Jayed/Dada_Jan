@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../AppContext';
+import { navigateToRoute } from '../navigation';
 import { Eye, ShieldCheck, Users, ShoppingBag, Languages, Award } from 'lucide-react';
 
 export const RoleSwitcher: React.FC = () => {
@@ -30,7 +31,10 @@ export const RoleSwitcher: React.FC = () => {
       <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
         <button
           id="btn-switch-customer"
-          onClick={() => setActivePanel('customer')}
+          onClick={() => {
+            setActivePanel('customer');
+            navigateToRoute({ type: 'home' });
+          }}
           className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 font-medium transition-all ${
             activePanel === 'customer' 
               ? 'bg-emerald-650 text-white shadow' 
@@ -42,7 +46,10 @@ export const RoleSwitcher: React.FC = () => {
         </button>
         <button
           id="btn-switch-partner"
-          onClick={() => setActivePanel('partner')}
+          onClick={() => {
+            setActivePanel('partner');
+            navigateToRoute({ type: 'partner' });
+          }}
           className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 font-medium transition-all ${
             activePanel === 'partner' 
               ? 'bg-emerald-650 text-white shadow' 
@@ -54,7 +61,10 @@ export const RoleSwitcher: React.FC = () => {
         </button>
         <button
           id="btn-switch-admin"
-          onClick={() => setActivePanel('admin')}
+          onClick={() => {
+            setActivePanel('admin');
+            navigateToRoute({ type: 'admin' });
+          }}
           className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 font-medium transition-all ${
             activePanel === 'admin' 
               ? 'bg-amber-600 text-white shadow' 

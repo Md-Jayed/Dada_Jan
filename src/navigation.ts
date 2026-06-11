@@ -7,8 +7,10 @@ export interface ParsedRoute {
 
 // Generate URL slug from product name (using clean English part if available)
 export function getProductSlug(product: Product): string {
-  const englishPart = product.name.split(' (')[0] || product.name;
+  // Support safe splitting on any '(' or ' (' to extract English part cleanly
+  const englishPart = product.name.split('(')[0] || product.name;
   return englishPart
+    .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
@@ -17,22 +19,51 @@ export function getProductSlug(product: Product): string {
 // Find product by slug or id
 export function findProductBySlugOrId(slugOrId: string, products: Product[]): Product | undefined {
   if (!slugOrId) return undefined;
-  const lower = slugOrId.toLowerCase();
+  
+  let decoded = slugOrId;
+  try {
+    decoded = decodeURIComponent(slugOrId);
+  } catch (e) {
+    console.warn('URI decode failed for slugOrId:', slugOrId, e);
+  }
+  
+  const lower = decoded.toLowerCase().trim();
+  
   return products.find(p => {
+    // 1. Direct ID match
     if (p.id.toLowerCase() === lower) return true;
+    
+    // 2. Slug check on actual product
     const s = getProductSlug(p);
-    return s === lower;
+    if (s === lower) return true;
+    
+    // 3. Fallback name match (stripped of extra spaces)
+    if (p.name.toLowerCase().trim() === lower) return true;
+    
+    return false;
   });
 }
 
 // Robust parse of the current path or hash
 export function parseCurrentRoute(): ParsedRoute {
-  let path = window.location.pathname;
-  const hash = window.location.hash;
+  let path = window.location.pathname || '/';
+  const hash = window.location.hash || '';
 
   // Support hash fallback
   if (hash.startsWith('#/')) {
     path = hash.substring(1); // e.g. "/product/abc"
+  } else if (hash.startsWith('#')) {
+    path = '/' + hash.substring(1); // e.g. "#product/abc" -> "/product/abc"
+  }
+
+  // Remove query parameters
+  if (path.includes('?')) {
+    path = path.split('?')[0];
+  }
+
+  // Remove trailing slashes for standard routing cases (except root itself)
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
   }
 
   if (path === '/login') {

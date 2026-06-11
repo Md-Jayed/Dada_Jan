@@ -1,4 +1,18 @@
-import { Product, Partner, Order, Withdrawal, AppNotification, Customer } from './types';
+import { Product, Partner, Order, Withdrawal, AppNotification, Customer, Category, Coupon } from './types';
+
+const initialCategories: Category[] = [
+  { id: 'cat-1', name: 'Dry Food', bnName: 'শুকনো খাবার', description: 'খাঁটি মধু, ঘি ও সুন্নাহ খাবার', isActive: true },
+  { id: 'cat-2', name: 'Beauty & Cosmetics', bnName: 'সৌন্দর্য ও প্রসাধনী', description: 'হালাল ও অর্গানিক প্রসাধনী', isActive: true },
+  { id: 'cat-3', name: 'Fashion', bnName: 'ফ্যাশন ও পোশাক', description: 'শালীন সুন্নাহ পোশাক', isActive: true },
+  { id: 'cat-4', name: 'Perfume', bnName: 'আতর ও সুগন্ধি', description: 'অ্যালকোহলমুক্ত খাঁটি আতর', isActive: true },
+  { id: 'cat-5', name: 'Gadgets & Electronics', bnName: 'গ্যাজেটস ও ইলেকট্রনিক্স', description: 'দৈনন্দিন প্রয়োজনীয় গ্যাজেটস', isActive: true },
+  { id: 'cat-6', name: 'Spices', bnName: 'খাঁটি মশলা', description: 'প্রাকৃতিক ও নির্ভেজাল মশলা', isActive: true },
+];
+
+const initialCoupons: Coupon[] = [
+  { id: 'cp-1', code: 'SUNNAH10', discountType: 'Percentage', amount: 10, minOrderAmount: 500, usageLimit: 100, usageCount: 4, isActive: true },
+  { id: 'cp-2', code: 'DADAJAN100', discountType: 'Fixed', amount: 100, minOrderAmount: 1000, usageLimit: 50, usageCount: 12, isActive: true },
+];
 
 // Let's seed initial data
 const initialProducts: Product[] = [
@@ -642,6 +656,8 @@ export interface DBState {
   withdrawals: Withdrawal[];
   notifications: AppNotification[];
   customers: Customer[];
+  categories: Category[];
+  coupons: Coupon[];
 }
 
 export function loadDB(): DBState {
@@ -652,18 +668,22 @@ export function loadDB(): DBState {
       orders: initialOrders,
       withdrawals: initialWithdrawals,
       notifications: initialNotifications,
-      customers: initialCustomers
+      customers: initialCustomers,
+      categories: initialCategories,
+      coupons: initialCoupons
     };
   }
   const stored = localStorage.getItem(STORAGE_KEY);
   if (!stored) {
-    const db = {
+    const db: DBState = {
       products: initialProducts,
       partners: initialPartners,
       orders: initialOrders,
       withdrawals: initialWithdrawals,
       notifications: initialNotifications,
-      customers: initialCustomers
+      customers: initialCustomers,
+      categories: initialCategories,
+      coupons: initialCoupons
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     return db;
@@ -673,8 +693,14 @@ export function loadDB(): DBState {
     const hasNewItems = parsed.products && parsed.products.some((p: any) => p.sku === 'SKU-SPICE-SAFFRON-05');
     if (!hasNewItems) {
       parsed.products = initialProducts;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
     }
+    if (!parsed.categories) {
+      parsed.categories = initialCategories;
+    }
+    if (!parsed.coupons) {
+      parsed.coupons = initialCoupons;
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
     return parsed;
   } catch (e) {
     console.error('Failed to parse database, resetting to initial', e);
@@ -684,7 +710,9 @@ export function loadDB(): DBState {
       orders: initialOrders,
       withdrawals: initialWithdrawals,
       notifications: initialNotifications,
-      customers: initialCustomers
+      customers: initialCustomers,
+      categories: initialCategories,
+      coupons: initialCoupons
     };
   }
 }
@@ -742,3 +770,441 @@ export function calculateCommissions(order: Order, partners: Partner[]): {
 export function getLocalTime(): string {
   return new Date().toISOString();
 }
+
+// ==========================================
+// SUPABASE SERIALIZERS & DESERIALIZERS
+// ==========================================
+
+export function serializeProduct(p: Product): any {
+  return {
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    category: p.category,
+    price: p.price,
+    cost_price: p.costPrice,
+    stock_qty: p.stockQty,
+    images: p.images,
+    video_url: p.videoUrl,
+    certification_status: p.certificationStatus,
+    origin: p.origin,
+    ingredients: p.ingredients,
+    description: p.description,
+    rating: p.rating,
+    reviews_count: p.reviewsCount,
+    is_featured: p.isFeatured || false,
+    status: p.status || 'Published',
+    sale_price: p.salePrice || null
+  };
+}
+
+export function deserializeProduct(row: any): Product {
+  return {
+    id: row.id,
+    name: row.name || 'Untitled Product',
+    sku: row.sku || '',
+    category: row.category || '',
+    price: Number(row.price || 0),
+    costPrice: Number(row.cost_price || 0),
+    stockQty: Number(row.stock_qty || 0),
+    images: Array.isArray(row.images) ? row.images : [],
+    videoUrl: row.video_url || '',
+    certificationStatus: typeof row.certification_status === 'object' && row.certification_status ? row.certification_status : {
+      imamVerified: false,
+      labTested: false,
+      certifiedAuthentic: false
+    },
+    origin: row.origin || '',
+    ingredients: row.ingredients || '',
+    description: row.description || '',
+    rating: Number(row.rating || 5),
+    reviewsCount: Number(row.reviews_count || 0),
+    isFeatured: row.is_featured,
+    status: row.status,
+    salePrice: row.sale_price ? Number(row.sale_price) : undefined
+  };
+}
+
+export function serializeCategory(c: Category): any {
+  return {
+    id: c.id,
+    name: c.name,
+    bn_name: c.bnName,
+    description: c.description || null,
+    image: c.image || null,
+    is_active: c.isActive
+  };
+}
+
+export function deserializeCategory(row: any): Category {
+  return {
+    id: row.id,
+    name: row.name || '',
+    bnName: row.bn_name || '',
+    description: row.description || '',
+    image: row.image || undefined,
+    isActive: row.is_active !== false
+  };
+}
+
+export function serializeCoupon(c: Coupon): any {
+  return {
+    id: c.id,
+    code: c.code,
+    discount_type: c.discountType,
+    amount: c.amount,
+    min_order_amount: c.minOrderAmount || null,
+    usage_limit: c.usageLimit || null,
+    usage_count: c.usageCount || 0,
+    is_active: c.isActive,
+    expires_date: c.expiresDate || null
+  };
+}
+
+export function deserializeCoupon(row: any): Coupon {
+  return {
+    id: row.id,
+    code: row.code || '',
+    discountType: row.discount_type || 'Percentage',
+    amount: Number(row.amount || 0),
+    minOrderAmount: row.min_order_amount ? Number(row.min_order_amount) : undefined,
+    usageLimit: row.usage_limit ? Number(row.usage_limit) : undefined,
+    usageCount: Number(row.usage_count || 0),
+    isActive: row.is_active !== false,
+    expiresDate: row.expires_date || undefined
+  };
+}
+
+export function serializeOrder(o: Order): any {
+  return {
+    id: o.id,
+    customer_name: o.customerName,
+    customer_mobile: o.customerMobile,
+    customer_email: o.customerEmail,
+    customer_address: o.customerAddress,
+    district: o.district,
+    area: o.area,
+    items: o.items,
+    subtotal: o.subtotal,
+    discount: o.discount,
+    shipping: o.shipping,
+    total: o.total,
+    referral_code: o.referralCode || null,
+    status: o.status,
+    payment_method: o.paymentMethod,
+    payment_status: o.paymentStatus,
+    date: o.date,
+    assigned_partner_id: o.assignedPartnerId || null,
+    commissions_calculated: o.commissionsCalculated
+  };
+}
+
+export function deserializeOrder(row: any): Order {
+  return {
+    id: row.id,
+    customerName: row.customer_name || '',
+    customerMobile: row.customer_mobile || '',
+    customerEmail: row.customer_email || '',
+    customerAddress: row.customer_address || '',
+    district: row.district || '',
+    area: row.area || '',
+    items: Array.isArray(row.items) ? row.items : [],
+    subtotal: Number(row.subtotal || 0),
+    discount: Number(row.discount || 0),
+    shipping: Number(row.shipping || 0),
+    total: Number(row.total || 0),
+    referralCode: row.referral_code || undefined,
+    status: row.status || 'Placed',
+    paymentMethod: row.payment_method || 'Cash on Delivery',
+    paymentStatus: row.payment_status || 'Pending',
+    date: row.date || '',
+    assignedPartnerId: row.assigned_partner_id || undefined,
+    commissionsCalculated: !!row.commissions_calculated
+  };
+}
+
+export function serializePartner(p: Partner): any {
+  return {
+    id: p.id,
+    name: p.name,
+    bengali_name: p.bengaliName,
+    role: p.role,
+    mobile: p.mobile,
+    email: p.email,
+    password: p.password || '123456',
+    referral_code: p.referralCode,
+    district: p.district,
+    area: p.area,
+    verified_status: p.verifiedStatus,
+    nid_photo: p.nidPhoto,
+    wallet_balance: p.walletBalance,
+    pending_balance: p.pendingBalance,
+    total_withdrawn: p.totalWithdrawn,
+    rating: p.rating || 5.0
+  };
+}
+
+export function deserializePartner(row: any): Partner {
+  return {
+    id: row.id,
+    name: row.name || '',
+    bengaliName: row.bengali_name || '',
+    role: row.role || 'Partner',
+    mobile: row.mobile || '',
+    email: row.email || '',
+    password: row.password || '123456',
+    referralCode: row.referral_code || '',
+    district: row.district || '',
+    area: row.area || '',
+    verifiedStatus: row.verified_status || 'Pending',
+    nidPhoto: row.nid_photo || '',
+    walletBalance: Number(row.wallet_balance || 0),
+    pendingBalance: Number(row.pending_balance || 0),
+    totalWithdrawn: Number(row.total_withdrawn || 0),
+    rating: Number(row.rating || 5.0)
+  };
+}
+
+export function serializeWithdrawal(w: Withdrawal): any {
+  return {
+    id: w.id,
+    partner_id: w.partnerId,
+    partner_name: w.partnerName,
+    partner_role: w.partnerRole,
+    mobile: w.mobile,
+    amount: w.amount,
+    method: w.method,
+    details: w.details,
+    status: w.status,
+    date: w.date
+  };
+}
+
+export function deserializeWithdrawal(row: any): Withdrawal {
+  return {
+    id: row.id,
+    partnerId: row.partner_id || '',
+    partnerName: row.partner_name || '',
+    partnerRole: row.partner_role || '',
+    mobile: row.mobile || '',
+    amount: Number(row.amount || 0),
+    method: row.method || 'bKash',
+    details: row.details || '',
+    status: row.status || 'Pending',
+    date: row.date || ''
+  };
+}
+
+export function serializeNotification(n: AppNotification): any {
+  return {
+    id: n.id,
+    type: n.type,
+    target_role: n.targetRole,
+    partner_id: n.partnerId || null,
+    title: n.title,
+    description: n.description,
+    timestamp: n.timestamp,
+    read: n.read
+  };
+}
+
+export function deserializeNotification(row: any): AppNotification {
+  return {
+    id: row.id,
+    type: row.type || 'Order',
+    targetRole: row.target_role || 'Partner',
+    partnerId: row.partner_id || undefined,
+    title: row.title || '',
+    description: row.description || '',
+    timestamp: row.timestamp || '',
+    read: !!row.read
+  };
+}
+
+export function serializeCustomer(c: Customer): any {
+  return {
+    id: c.id,
+    name: c.name,
+    mobile: c.mobile,
+    email: c.email,
+    password: c.password || '123456',
+    district: c.district,
+    area: c.area,
+    address: c.address,
+    referred_by: c.referredBy || null,
+    join_date: c.joinDate
+  };
+}
+
+export function deserializeCustomer(row: any): Customer {
+  return {
+    id: row.id,
+    name: row.name || '',
+    mobile: row.mobile || '',
+    email: row.email || '',
+    password: row.password || '123456',
+    district: row.district || '',
+    area: row.area || '',
+    address: row.address || '',
+    referredBy: row.referred_by || undefined,
+    joinDate: row.join_date || ''
+  };
+}
+
+export const SUPABASE_SETUP_SQL = `-- Supabase DDL Script for Dadajan Honey ERP
+-- Copy and run this in your Supabase SQL Editor.
+
+-- 1. categories Table
+CREATE TABLE IF NOT EXISTS public.categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  bn_name TEXT,
+  description TEXT,
+  image TEXT,
+  is_active BOOLEAN DEFAULT TRUE
+);
+
+-- 2. coupons Table
+CREATE TABLE IF NOT EXISTS public.coupons (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  discount_type TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  min_order_amount NUMERIC,
+  usage_limit INT,
+  usage_count INT DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
+  expires_date TEXT
+);
+
+-- 3. products Table
+CREATE TABLE IF NOT EXISTS public.products (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  sku TEXT,
+  category TEXT,
+  price NUMERIC NOT NULL,
+  cost_price NUMERIC,
+  stock_qty INT DEFAULT 0,
+  images TEXT[],
+  video_url TEXT,
+  certification_status JSONB,
+  origin TEXT,
+  ingredients TEXT,
+  description TEXT,
+  rating NUMERIC,
+  reviews_count INT DEFAULT 0,
+  is_featured BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'Published',
+  sale_price NUMERIC
+);
+
+-- 4. partners Table
+CREATE TABLE IF NOT EXISTS public.partners (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  bengali_name TEXT,
+  role TEXT,
+  mobile TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL UNIQUE,
+  password TEXT DEFAULT '123456',
+  referral_code TEXT UNIQUE,
+  district TEXT,
+  area TEXT,
+  verified_status TEXT DEFAULT 'Pending',
+  nid_photo TEXT,
+  wallet_balance NUMERIC DEFAULT 0,
+  pending_balance NUMERIC DEFAULT 0,
+  total_withdrawn NUMERIC DEFAULT 0,
+  rating NUMERIC DEFAULT 5.0
+);
+
+-- 5. customers Table
+CREATE TABLE IF NOT EXISTS public.customers (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  mobile TEXT NOT NULL UNIQUE,
+  email TEXT,
+  password TEXT DEFAULT '123456',
+  district TEXT,
+  area TEXT,
+  address TEXT,
+  referred_by TEXT,
+  join_date TEXT
+);
+
+-- 6. orders Table
+CREATE TABLE IF NOT EXISTS public.orders (
+  id TEXT PRIMARY KEY,
+  customer_name TEXT,
+  customer_mobile TEXT,
+  customer_email TEXT,
+  customer_address TEXT,
+  district TEXT,
+  area TEXT,
+  items JSONB,
+  subtotal NUMERIC,
+  discount NUMERIC DEFAULT 0,
+  shipping NUMERIC DEFAULT 0,
+  total NUMERIC,
+  referral_code TEXT,
+  status TEXT DEFAULT 'Placed',
+  payment_method TEXT,
+  payment_status TEXT DEFAULT 'Pending',
+  date TEXT,
+  assigned_partner_id TEXT,
+  commissions_calculated BOOLEAN DEFAULT FALSE
+);
+
+-- 7. withdrawals Table
+CREATE TABLE IF NOT EXISTS public.withdrawals (
+  id TEXT PRIMARY KEY,
+  partner_id TEXT,
+  partner_name TEXT,
+  partner_role TEXT,
+  mobile TEXT,
+  amount NUMERIC,
+  method TEXT,
+  details TEXT,
+  status TEXT DEFAULT 'Pending',
+  date TEXT
+);
+
+-- 8. notifications Table
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id TEXT PRIMARY KEY,
+  type TEXT,
+  target_role TEXT,
+  partner_id TEXT,
+  title TEXT,
+  description TEXT,
+  timestamp TEXT,
+  read BOOLEAN DEFAULT FALSE
+);
+
+-- Enable RLS On All Tables
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.partners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- Anonymous Select Rights to enable public catalog viewing (Products/Categories)
+CREATE POLICY "Allow public select categories" ON public.categories FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "Allow public select products" ON public.products FOR SELECT TO anon, authenticated USING (true);
+
+-- Authenticated General Access
+CREATE POLICY "Allow admin full access categories" ON public.categories FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow admin full access coupons" ON public.coupons FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow admin full access products" ON public.products FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow admin full access partners" ON public.partners FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow admin full access customers" ON public.customers FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow admin full access orders" ON public.orders FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow admin full access withdrawals" ON public.withdrawals FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow admin full access notifications" ON public.notifications FOR ALL TO authenticated USING (true);
+
+-- If tables already exist, users can skip DDL and enjoy immediate seamless synchronization.
+`;

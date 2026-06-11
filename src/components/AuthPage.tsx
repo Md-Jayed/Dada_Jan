@@ -8,7 +8,7 @@ import {
 
 interface AuthPageProps {
   onBack?: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (tab: 'customer' | 'partner' | 'admin') => void;
   initialTab?: 'customer' | 'partner' | 'admin';
 }
 
@@ -144,7 +144,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess, initialTa
       setIsVerifying(false);
       setActivePanel('customer');
       setTimeout(() => {
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess('customer');
       }, 1200);
     } catch (err: any) {
       setSupabaseError(err.message || 'An unexpected error occurred during signup.');
@@ -201,7 +201,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess, initialTa
           setIsVerifying(false);
           setActivePanel('customer');
           setTimeout(() => {
-            if (onSuccess) onSuccess();
+            if (onSuccess) onSuccess('customer');
           }, 1000);
         } else {
           setOtpError(lang === 'bn' ? 'ভুল ইমেইল বা পাসওয়ার্ড! পূর্বের পাসওয়ার্ড অথবা ডিফল্ট পাসওয়ার্ড "123456" দিয়ে চেষ্টা করুন।' : 'Invalid email or password! Try your registered password or default "123456".');
@@ -229,7 +229,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess, initialTa
           setIsVerifying(false);
           setActivePanel('partner');
           setTimeout(() => {
-            if (onSuccess) onSuccess();
+            if (onSuccess) onSuccess('partner');
           }, 1000);
         } else {
           setOtpError(lang === 'bn' ? 'ভুল ইমেইল বা পাসওয়ার্ড! পূর্বের পাসওয়ার্ড অথবা ডিফল্ট পাসওয়ার্ড "123456" দিয়ে চেষ্টা করুন।' : 'Invalid email or password! Try your registered password or default "123456".');
@@ -292,8 +292,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess, initialTa
         }, false); // autoLogin = false
 
         setSuccessMsg(lang === 'bn' 
-          ? 'পার্টনার নিবন্ধন অনুরোধ সফল হয়েছে। লগইন করার পূর্বে অনুগ্রহ করে আপনার ইমেইল চেক করুন এবং অ্যাকাউন্ট নিশ্চিত করুন।' 
-          : 'Check your email and confirm your account before logging in.');
+          ? (partnerRole === 'Dealer' 
+              ? 'ডিলার নিবন্ধন আবেদন সফল হয়েছে! কাস্টমার নিজে ডিলার অ্যাকাউন্ট সরাসরি খুলতে পারেন না, এটি সক্রিয় করতে অনুগ্রহ করে এডমিন অনুমোদন করান।' 
+              : 'পার্টনার নিবন্ধন অনুরোধ সফল হয়েছে। লগইন করার পূর্বে অনুগ্রহ করে আপনার ইমেইল চেক করুন এবং অ্যাকাউন্ট নিশ্চিত করুন।')
+          : (partnerRole === 'Dealer' 
+              ? 'Dealer registration saved! Customers cannot self-activate. Go to Admin ERP to approve this account.' 
+              : 'Check your email and confirm your account before logging in.'));
         setIsVerifying(false);
         return;
       }
@@ -308,17 +312,29 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess, initialTa
         area: partnerArea,
         nidPhoto: partnerNid,
         password: regPassword || undefined
-      });
+      }, partnerRole !== 'Dealer'); // If role is Dealer, don't auto-login into active space directly
 
       setSuccessMsg(lang === 'bn' 
-        ? 'আপনার পার্টনার আবেদন দাদাজান এডমিন বোর্ডে জমা হয়েছে। অনুগ্রহ করে এডমিন প্যানেল থেকে অনুমোদন করান!' 
-        : 'Partner application submitted! Verify/Approve inside Admin ERP to activate.');
+        ? (partnerRole === 'Dealer'
+            ? 'আপনার ডিজিটাল ডিলার আবেদন দাদাজান সিস্টেমে জমা হয়েছে। ডিলার অ্যাকাউন্ট সচল করতে এডমিন প্যানেল থেকে অনুমোদন করান!'
+            : 'আপনার পার্টনার আবেদন দাদাজান এডমিন বোর্ডে জমা হয়েছে। অনুগ্রহ করে এডমিন প্যানেল থেকে অনুমোদন করান!') 
+        : (partnerRole === 'Dealer'
+            ? 'Digital Dealer pending request submitted! Approve inside Admin ERP to activate.'
+            : 'Partner application submitted! Verify/Approve inside Admin ERP to activate.'));
       setIsVerifying(false);
-      setActivePanel('partner');
       
-      setTimeout(() => {
-        if (onSuccess) onSuccess();
-      }, 2500);
+      if (partnerRole !== 'Dealer') {
+        setActivePanel('partner');
+        setTimeout(() => {
+          if (onSuccess) onSuccess('partner');
+        }, 2500);
+      } else {
+        // If they registered as a Dealer, lead them to view the portal which shows the Pending state
+        setActivePanel('partner');
+        setTimeout(() => {
+          if (onSuccess) onSuccess('partner');
+        }, 2500);
+      }
     } catch (err: any) {
       setSupabaseError(err.message || 'An unexpected error occurred during partner signup.');
       setOtpError(err.message || 'An unexpected error occurred during partner signup.');
@@ -335,7 +351,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess, initialTa
       setSuccessMsg(lang === 'bn' ? 'এডমিন ERP প্যানেলে প্রবেশাধিকার মঞ্জুর!' : 'Admin ERP Access Granted!');
       setActivePanel('admin');
       setTimeout(() => {
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess('admin');
       }, 1000);
     } else {
       setAdminError(lang === 'bn' ? 'ভুল এডমিন ইমেইল অথবা পাসওয়ার্ড!' : 'Invalid admin credentials! Try (admin@dadajan.com / admin)');
@@ -841,17 +857,27 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess, initialTa
                         </div>
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="space-y-1 col-span-1 sm:col-span-2">
                         <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">{lang === 'bn' ? 'অংশীদারিত্বের ধরণ' : 'Cooperative Partnership Role'}</label>
                         <select 
                           value={partnerRole}
                           onChange={(e) => setPartnerRole(e.target.value as any)}
-                          className="w-full bg-white border border-stone-250 rounded-xl py-2 px-3 text-xs font-bold focus:outline-none focus:border-emerald-600"
+                          className="w-full bg-white border border-stone-250 rounded-xl py-2 px-3 text-xs font-bold focus:outline-none focus:border-emerald-600 animate-transition"
                         >
                           <option value="Imam">{lang === 'bn' ? 'ইমাম অংশীদার (রেফারেল ও সত্যায়ক)' : 'Imam Partner (Introducer / Validator)'}</option>
                           <option value="Dealer">{lang === 'bn' ? 'ডিজিটাল ডিলার (পয়েন্ট হ্যান্ডলার ও লজিস্টিকস)' : 'Digital Dealer (Logistics / Hub Point)'}</option>
                           <option value="Local Partner">{lang === 'bn' ? 'লোকাল পার্টনার (দ্বীনি সমবায় অংশীদার)' : 'Local Partner (General Cooperative)'}</option>
                         </select>
+                        {partnerRole === 'Dealer' && (
+                          <div className="mt-2 p-3 bg-amber-55 border-l-4 border-amber-500 rounded-r-xl text-stone-800 animate-fadeIn">
+                            <span className="font-extrabold text-[#92400e] text-[11px] block uppercase tracking-wide">⚠️ {lang === 'bn' ? 'প্রশাসনিক অনুমোদন আবশ্যক' : 'ADMINISTRATIVE APPROVAL REQUIRED'}</span>
+                            <span className="text-[10.5px] leading-relaxed block mt-0.5 text-stone-700">
+                              {lang === 'bn' 
+                                ? 'গ্রাহকরা সরাসরি ডিলার অ্যাকাউন্ট সক্রিয় করতে পারেন না। আবেদন জমা দেয়ার পর দাদাজান সিস্টেম এডমিন দ্বারা ব্যাকগ্রাউন্ড এবং ভৌগোলিক অবস্থান যাচাইয়ের পর এটি সক্রিয় করা হবে।' 
+                                : 'Customers cannot self-create active Dealer hubs. Your submission will remain pending in the DADAJAN system and requires manual review & approval by an Admin.'}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-1">

@@ -19,10 +19,39 @@ DROP TABLE IF EXISTS public.orders CASCADE;
 DROP TABLE IF EXISTS public.customers CASCADE;
 DROP TABLE IF EXISTS public.partners CASCADE;
 DROP TABLE IF EXISTS public.products CASCADE;
+DROP TABLE IF EXISTS public.coupons CASCADE;
+DROP TABLE IF EXISTS public.categories CASCADE;
 
 -- ==========================================
 -- 2. CREATE SCHEMAS & TABLES
 -- ==========================================
+
+-- AA. Categories Table
+CREATE TABLE public.categories (
+    id VARCHAR(100) PRIMARY KEY,
+    name TEXT NOT NULL,
+    bn_name TEXT,
+    description TEXT,
+    image TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- AB. Coupons Table
+CREATE TABLE public.coupons (
+    id VARCHAR(100) PRIMARY KEY,
+    code VARCHAR(100) UNIQUE NOT NULL,
+    discount_type VARCHAR(50) NOT NULL,
+    amount INT NOT NULL CHECK (amount >= 0),
+    min_order_amount INT CHECK (min_order_amount >= 0),
+    usage_limit INT CHECK (usage_limit >= 0),
+    usage_count INT DEFAULT 0 CHECK (usage_count >= 0),
+    is_active BOOLEAN DEFAULT TRUE,
+    expires_date TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- A. Products Table
 CREATE TABLE public.products (
@@ -41,6 +70,9 @@ CREATE TABLE public.products (
     description TEXT,
     rating NUMERIC(3, 2) DEFAULT 0.0 CHECK (rating >= 0.0 AND rating <= 5.0),
     reviews_count INT DEFAULT 0 CHECK (reviews_count >= 0),
+    is_featured BOOLEAN DEFAULT FALSE,
+    status VARCHAR(50) DEFAULT 'Published',
+    sale_price INT CHECK (sale_price >= 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -178,6 +210,8 @@ CREATE TRIGGER trg_partners_timestamp BEFORE UPDATE ON public.partners FOR EACH 
 CREATE TRIGGER trg_customers_timestamp BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION public.fn_update_timestamp();
 CREATE TRIGGER trg_orders_timestamp BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION public.fn_update_timestamp();
 CREATE TRIGGER trg_withdrawals_timestamp BEFORE UPDATE ON public.withdrawals FOR EACH ROW EXECUTE FUNCTION public.fn_update_timestamp();
+CREATE TRIGGER trg_categories_timestamp BEFORE UPDATE ON public.categories FOR EACH ROW EXECUTE FUNCTION public.fn_update_timestamp();
+CREATE TRIGGER trg_coupons_timestamp BEFORE UPDATE ON public.coupons FOR EACH ROW EXECUTE FUNCTION public.fn_update_timestamp();
 
 -- Trigger Function: Subtract or Adjust Wallet Balances automatically upon Withdrawal Status confirmation
 CREATE OR REPLACE FUNCTION public.fn_manage_partner_balances()
@@ -213,6 +247,8 @@ ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
 
 -- RULE 1: superadmin-bypass-role
 -- Provides complete unrestricted SELECT, INSERT, UPDATE, DELETE permissions across all database files.
@@ -237,6 +273,30 @@ CREATE POLICY "products_unrestricted_read"
 
 CREATE POLICY "products_admin_all" 
     ON public.products FOR ALL 
+    TO authenticated 
+    USING (public.fn_is_admin()) 
+    WITH CHECK (public.fn_is_admin());
+
+
+-- categories Policies
+CREATE POLICY "categories_unrestricted_read" 
+    ON public.categories FOR SELECT 
+    USING (TRUE);
+
+CREATE POLICY "categories_admin_all" 
+    ON public.categories FOR ALL 
+    TO authenticated 
+    USING (public.fn_is_admin()) 
+    WITH CHECK (public.fn_is_admin());
+
+
+-- coupons Policies
+CREATE POLICY "coupons_unrestricted_read" 
+    ON public.coupons FOR SELECT 
+    USING (TRUE);
+
+CREATE POLICY "coupons_admin_all" 
+    ON public.coupons FOR ALL 
     TO authenticated 
     USING (public.fn_is_admin()) 
     WITH CHECK (public.fn_is_admin());

@@ -7,7 +7,17 @@ interface SupabaseRLSConsoleProps {
 }
 
 export const SupabaseRLSConsole: React.FC<SupabaseRLSConsoleProps> = ({ currentRole }) => {
-  const { lang, currentCustomer, currentPartner, isAdminLoggedIn } = useApp();
+  const { 
+    lang, 
+    currentCustomer, 
+    currentPartner, 
+    isAdminLoggedIn,
+    supabaseStatus,
+    supabaseLoading,
+    supabaseErrorMsg,
+    missingTables,
+    supabaseSetupSql
+  } = useApp();
   const [activeTab, setActiveTab] = useState<'status' | 'sql' | 'simulator'>('status');
   const [simulatedTable, setSimulatedTable] = useState<'orders' | 'customers' | 'withdrawals'>('orders');
   const [simulatedQueryKey, setSimulatedQueryKey] = useState('');
@@ -143,6 +153,105 @@ export const SupabaseRLSConsole: React.FC<SupabaseRLSConsoleProps> = ({ currentR
         {/* TAB 1: RLS STATUS & COMPLIANCE */}
         {activeTab === 'status' && (
           <div className="space-y-4">
+            
+            {/* Database Sync Status Alert Row */}
+            <div className="p-4 rounded-2xl border bg-stone-950 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className={`p-2 rounded-xl shrink-0 ${
+                  supabaseStatus === 'connected' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                  supabaseStatus === 'needs_tables' ? 'bg-amber-950 text-amber-400 border border-amber-800 animate-pulse' :
+                  supabaseStatus === 'error' ? 'bg-rose-950 text-rose-450 border border-rose-800' :
+                  'bg-stone-900 text-stone-400 border border-stone-850'
+                }`}>
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h5 className="font-bold text-xs text-stone-100 uppercase tracking-widest flex items-center gap-2">
+                    Database Connection Status: 
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                      supabaseStatus === 'connected' ? 'bg-emerald-800/20 text-emerald-400 border border-emerald-900/60' :
+                      supabaseStatus === 'needs_tables' ? 'bg-amber-800/20 text-amber-400 border border-amber-900/60' :
+                      supabaseStatus === 'error' ? 'bg-rose-800/20 text-rose-400 border border-rose-900/60' :
+                      'bg-stone-800 text-stone-450'
+                    }`}>
+                      {supabaseStatus.toUpperCase()}
+                    </span>
+                  </h5>
+                  <p className="text-[11px] text-stone-405 mt-1 font-sans">
+                    {supabaseStatus === 'connected' && `Successfully synchronized bidirectional in real-time with Dadajan's active tables. All orders, customers, and coupons load directly from your remote PostgreSQL.`}
+                    {supabaseStatus === 'loading' && `Securing handshake with Supabase PostgreSQL cluster... Please wait.`}
+                    {supabaseStatus === 'error' && `Could not reach your remote SQL database. Error details: ${supabaseErrorMsg || 'Sandbox settings mismatch'}. Please check your environment keys.`}
+                    {supabaseStatus === 'needs_tables' && `Connected successfully! However, some or all of the expected tables do not exist yet. Please paste the preloaded SQL commands below in your Supabase SQL Editor.`}
+                  </p>
+                </div>
+              </div>
+              
+              {supabaseStatus === 'needs_tables' && (
+                <button
+                  onClick={() => setActiveTab('sql')}
+                  className="bg-amber-500 hover:bg-amber-600 text-stone-950 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition"
+                >
+                  🚀 Setup Schema
+                </button>
+              )}
+            </div>
+
+            {/* If missing tables, provide a super helpful raw SQL workspace */}
+            {supabaseStatus === 'needs_tables' && (
+              <div className="bg-stone-950 border border-amber-900/40 p-4 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-mono font-bold text-amber-500 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" /> Missing Tables Detected ({missingTables.join(', ')})
+                  </span>
+                  <span className="text-[9px] font-mono text-stone-500">
+                    Supabase SQL Editor Ready
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-400 leading-relaxed font-sans">
+                  The client connected to your space, but the tables are missing. Go to your <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-amber-500 underline">Supabase Dashboard</a>, click on the **SQL Editor**, click **"New Query"**, paste the following script, and click **"Run"**:
+                </p>
+                <div className="relative">
+                  <pre className="p-3 text-[10px] font-mono text-stone-300 bg-stone-900 overflow-x-auto whitespace-pre max-h-[160px] rounded-lg border border-stone-800 leading-relaxed select-all">
+                    {supabaseSetupSql}
+                  </pre>
+                  <div className="absolute bottom-2 right-2 text-[9px] bg-stone-950 text-stone-400 px-2 py-0.5 rounded border border-stone-800 font-mono font-bold">
+                    SELECT TO COPY ALL
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Database Column Migration Helper for Existing Tables */}
+            <div className="bg-stone-950 border border-stone-850 p-4 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-mono font-bold text-amber-450 flex items-center gap-1.5">
+                  ⚡ Column Migration Patch (For Existing Database Tables)
+                </span>
+                <span className="text-[9px] font-mono text-stone-500">
+                  SQL ALTER TABLE Command
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-400 leading-relaxed font-sans">
+                If your tables were created in a previous version and you get a <code className="text-amber-500 font-mono">column does not exist</code> error (such as <code className="text-amber-500 font-mono">is_featured</code>, <code className="text-amber-500 font-mono">sale_price</code>, or <code className="text-amber-500 font-mono">status</code>), copying and pasting this script in your **Supabase SQL Editor** and clicking **"Run"** will upgrade your existing tables instantly while **keeping all your products safe**:
+              </p>
+              <div className="relative">
+                <pre className="p-3 text-[10px] font-mono text-amber-400 bg-stone-900 overflow-x-auto whitespace-pre max-h-[140px] rounded-lg border border-stone-800 leading-relaxed select-all">
+{`-- Add latest product catalog metadata columns
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Published';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS sale_price NUMERIC;
+
+-- Add updated coupon tracking metadata
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS expires_date TEXT;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS min_order_amount NUMERIC;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS usage_limit INT;`}
+                </pre>
+                <div className="absolute bottom-2 right-2 text-[9px] bg-stone-950 text-stone-450 px-2 py-0.5 rounded border border-stone-800 font-mono font-bold">
+                  SELECT TO COPY PATCH
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               
               <div className="bg-stone-950 p-4 rounded-xl border border-stone-850">
@@ -162,7 +271,7 @@ export const SupabaseRLSConsole: React.FC<SupabaseRLSConsoleProps> = ({ currentR
                   RLS Status Indicators
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className={`h-2 w-2 rounded-full ${supabaseStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-550'}`}></span>
                   <span className="text-xs font-bold font-mono text-emerald-400">
                     {currentRole === 'admin' ? 'BYPASSED' : 'ACTIVE_ENFORCED'}
                   </span>

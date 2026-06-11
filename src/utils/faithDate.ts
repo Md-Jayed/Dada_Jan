@@ -157,7 +157,14 @@ export function formatFaithDate(
  * Localizes a product name containing both English and Bengali parenthesis-wrapped name.
  * Format: "Arabian Jannatul Firdous Attar (জান্নাতুল ফেরদৌস আতর)"
  */
-export function getLocalizedProductName(name: string, lang: 'bn' | 'en'): string {
+export function getLocalizedProductName(name: any, lang: 'bn' | 'en'): string {
+  if (!name || typeof name !== 'string') {
+    if (name && typeof name === 'object' && 'name' in name && typeof name.name === 'string') {
+      name = name.name;
+    } else {
+      return '';
+    }
+  }
   const match = name.match(/(.*?)\s*\((.*?)\)/);
   if (match) {
     const englishPart = match[1].trim();

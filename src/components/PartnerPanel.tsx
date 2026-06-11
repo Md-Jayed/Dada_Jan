@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
+import { navigateToRoute } from '../navigation';
 import { Partner, Order, Withdrawal, AppNotification, Customer } from '../types';
 import { UserProfile } from './UserProfile';
 import { supabase } from '../supabaseClient';
@@ -30,13 +31,13 @@ export const PartnerPanel: React.FC = () => {
   useEffect(() => {
     const checkPartnerSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        window.location.hash = '#/login';
+      if (!session && !currentPartner) {
+        navigateToRoute({ type: 'login' });
         setShowAuthTab('partner');
       }
     };
     checkPartnerSession();
-  }, [setShowAuthTab]);
+  }, [currentPartner, setShowAuthTab]);
 
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawMethod, setWithdrawMethod] = useState<'bKash' | 'Nagad' | 'Bank Account'>('bKash');
@@ -104,6 +105,103 @@ export const PartnerPanel: React.FC = () => {
   };
 
   const currentAreaCustomers = customers.filter(c => c.area.toLowerCase() === partner.area.toLowerCase());
+
+  if (partner.verifiedStatus !== 'Approved') {
+    return (
+      <div className="bg-[#FAF9F5] min-h-screen text-slate-800 pb-12 font-sans">
+        {/* Elder-friendly Header Panel */}
+        <div className="bg-emerald-850 text-white p-6 md:p-8 rounded-b-[2rem] shadow-md relative overflow-hidden">
+          <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none">
+            <Users className="w-64 h-64 text-white" />
+          </div>
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between relative z-10 gap-4">
+            <div className="flex items-center gap-4 text-left">
+              <div className="w-16 h-16 rounded-full bg-amber-500 border-4 border-emerald-700 overflow-hidden shrink-0">
+                <img src={partner.nidPhoto} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+              </div>
+              <div>
+                <span className="inline-flex items-center gap-1 bg-emerald-800 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-1">
+                  🕌 {lang === 'bn' ? `দাদাজান ${partner.role === 'Imam' ? 'ইмам অংশীদার' : 'ডিজিটাল ডিলার'}` : `DADAJAN ${partner.role === 'Imam' ? 'Imam Partner' : 'Digital Dealer'}`}
+                </span>
+                <h1 className="text-xl md:text-2xl font-bold font-display leading-tight">{lang === 'bn' ? partner.bengaliName : partner.name}</h1>
+                <p className="text-xs text-emerald-200 mt-1 font-mono">ID: {partner.id} | {lang === 'bn' ? `এলাকা: ${partner.area}, ${partner.district}` : `Hub: ${partner.area}, ${partner.district}`}</p>
+              </div>
+            </div>
+
+            {/* Quick Stats Badges */}
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-emerald-950 font-sans">
+                {lang === 'bn' ? 'আবেদন খতিয়ে দেখা হচ্ছে' : 'Pending Administrative approval'}
+              </span>
+              {currentPartner && (
+                <button
+                  id="btn-partner-logout"
+                  onClick={async () => { await logout(); }}
+                  className="px-3.5 py-2 bg-red-500 hover:bg-red-600 hover:border-red-500 text-white border border-red-600 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0"
+                >
+                  {lang === 'bn' ? 'লগআউট' : 'Logout'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Pending State Block */}
+        <div className="max-w-4xl mx-auto px-4 mt-8">
+          <div className="bg-white rounded-3xl p-8 border border-stone-200/85 shadow-lg text-left relative overflow-hidden">
+            {/* Elegant Top Decorative Border */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-500 via-emerald-700 to-amber-500"></div>
+            
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6 pt-2">
+              <div className="p-3.5 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200 shrink-0 mx-auto md:mx-0">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              
+              <div className="space-y-4 flex-1 text-center md:text-left">
+                <div>
+                  <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
+                    {lang === 'bn' ? 'আবেদন পর্যালোচনাাধীন' : 'Verification Under Review'}
+                  </span>
+                  <h2 className="text-xl sm:text-2xl font-serif font-extrabold text-stone-900 mt-2.5 leading-snug">
+                    {partner.role === 'Dealer' 
+                      ? (lang === 'bn' ? 'ডিজিটাল ডিলার অ্যাকাউন্ট খুলতে এডমিন অনুমোদন প্রয়োজন' : 'Dealer Workspace Requires Admin Approval')
+                      : (lang === 'bn' ? 'অংশীদারিত্ব সক্রিয়করণ পর্যালোচনাাধীন রয়েছে' : 'Partner Account Awaiting Approval')}
+                  </h2>
+                </div>
+
+                <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-medium">
+                  {lang === 'bn' 
+                    ? 'দাদাজান ইকোসিস্টেমে আল্লাহর মেহেরবানীতে গ্রাহকদের হালাল গুণগত মান এবং বিশ্বস্ত সেবা দিতে প্রতিটি ডিলার ও ইমাম প্যানেল রেজিস্ট্রেশন ম্যানুয়ালি যাচাই করা হয়।'
+                    : 'To maintain Shari\'ah validation and high-contract pure product logs, all DadaJan Digital Dealer and Imam partner applications require manual auditing and background approval.'}
+                </p>
+
+                <div className="p-4 bg-[#FAF9F5] border border-amber-100 rounded-2xl text-left space-y-2">
+                  <h4 className="text-xs font-extrabold text-amber-800 uppercase tracking-wide flex items-center gap-1">
+                    📋 {lang === 'bn' ? 'প্রয়োজনীয় প্রশাসনিক অনবোর্ডিং' : 'Administrative Requirements Checklist'}
+                  </h4>
+                  <ul className="text-xs text-stone-600 list-disc list-inside space-y-1.5 font-medium">
+                    <li>{lang === 'bn' ? 'সার্ভিস এরিয়া ভৌগোলিক অবস্থান যাচাইকরণ' : 'Verifying local geographic fulfillment boundaries'}</li>
+                    <li>{lang === 'bn' ? 'শরীয়াহ সততা ও কো-অপারেティブ অঙ্গীকারপত্র পর্যালোচনা' : 'Verification of compliance pact and NID documents'}</li>
+                    <li>{lang === 'bn' ? 'প্রশাসনিক ক্লিয়ারেন্সের পরপরই ওয়ালেট ও রেফারেল কোড অ্যাক্টিভেশন' : 'Immediate release of live QR code and automatic routing permissions'}</li>
+                  </ul>
+                </div>
+
+                {/* Simulated Step Warning info */}
+                <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl text-left">
+                  <p className="text-xs text-emerald-850 font-medium leading-relaxed">
+                    ✨ <strong className="font-extrabold">{lang === 'bn' ? 'টেস্ট গাইড / সিমুলেশন নির্দেশিকা:' : 'Simulator Testing Guidance:'}</strong><br/>
+                    {lang === 'bn' 
+                      ? 'দাদাজান টেস্ট স্যান্ডবক্সে ডিলার প্যানেল পরীক্ষা করতে: উপরে থাকা কাল রঙের বার থেকে "⚙️ ERP এডমিন" বাটনে ক্লিক করুন। সেখান থেকে "🕌 পার্টনার ভেরিফিকেশন" (Partner Verification) সাব-ট্যাবে গিয়ে এক ক্লিকেই এই অ্যাকাউন্টটি অনুমোদন করে সক্রিয় করতে পারবেন!'
+                      : 'To test the Digital Dealer panel in this demo slot: Click "⚙️ Admin ERP" on the top simulated bar. Head to the "🕌 Partner Verification" sub-tab and click "Verify & Approve" to activate instantly!'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#FAF9F5] min-h-screen text-slate-800 pb-12 font-sans">

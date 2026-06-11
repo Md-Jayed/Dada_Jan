@@ -1,6 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, Partner, Order, Withdrawal, AppNotification, Customer, OrderItem } from './types';
-import { loadDB, saveDB, calculateCommissions, getLocalTime } from './dbStore';
+import { Product, Partner, Order, Withdrawal, AppNotification, Customer, OrderItem, Category, Coupon } from './types';
+import { 
+  loadDB, saveDB, calculateCommissions, getLocalTime,
+  serializeProduct, deserializeProduct,
+  serializeCategory, deserializeCategory,
+  serializeCoupon, deserializeCoupon,
+  serializeOrder, deserializeOrder,
+  serializePartner, deserializePartner,
+  serializeWithdrawal, deserializeWithdrawal,
+  serializeNotification, deserializeNotification,
+  serializeCustomer, deserializeCustomer,
+  DBState, SUPABASE_SETUP_SQL
+} from './dbStore';
 import { supabase } from './supabaseClient';
 import { performSystemLogout } from './lib/auth/logout';
 
@@ -11,6 +22,8 @@ interface AppContextType {
   withdrawals: Withdrawal[];
   notifications: AppNotification[];
   customers: Customer[];
+  categories: Category[];
+  coupons: Coupon[];
   activePanel: 'customer' | 'partner' | 'admin';
   selectedPartnerId: string; // The active Imam/Dealer we are pretending to be in Partner panel
   setPriceFormat: (amount: number) => string;
@@ -18,6 +31,13 @@ interface AppContextType {
   setSelectedPartnerId: (id: string) => void;
   lang: 'bn' | 'en';
   setLang: (lang: 'bn' | 'en') => void;
+  
+  // Supabase Status Indicator State
+  supabaseStatus: 'loading' | 'connected' | 'needs_tables' | 'error';
+  supabaseLoading: boolean;
+  supabaseErrorMsg: string | null;
+  missingTables: string[];
+  supabaseSetupSql: string;
   
   // Actions
   placeOrder: (customerInfo: {
@@ -34,11 +54,20 @@ interface AppContextType {
   addNewProduct: (product: Omit<Product, 'id'>) => void;
   editProduct: (product: Product) => void;
   deleteProduct: (id: string) => void;
+  syncProductsWithSupabase: () => Promise<{ success: boolean; count?: number; error?: string }>;
   requestWithdrawal: (partnerId: string, amount: number, method: Withdrawal['method'], details: string) => void;
   approveWithdrawal: (id: string, approve: boolean) => void;
   clearNotifications: (role: 'Admin' | 'Partner', partnerId?: string) => void;
   markNotificationsAsRead: (role: 'Admin' | 'Partner', partnerId?: string) => void;
   addCustomer: (cust: Omit<Customer, 'id' | 'joinDate'>) => void;
+  
+  // Dynamic Categories & Coupons actions
+  addCategory: (cat: Omit<Category, 'id'>) => void;
+  editCategory: (cat: Category) => void;
+  deleteCategory: (id: string) => void;
+  addCoupon: (cp: Omit<Coupon, 'id' | 'usageCount'>) => void;
+  editCoupon: (cp: Coupon) => void;
+  deleteCoupon: (id: string) => void;
 
   // Authentic Auth States & Actions
   currentCustomer: Customer | null;
@@ -82,6 +111,187 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem('isAdminLoggedIn') === 'true';
   });
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(false);
+
+  // Supabase Database Connection & Schema State Tracker
+  const [supabaseStatus, setSupabaseStatus] = useState<'loading' | 'connected' | 'needs_tables' | 'error'>('loading');
+  const [supabaseLoading, setSupabaseLoading] = useState<boolean>(true);
+  const [supabaseErrorMsg, setSupabaseErrorMsg] = useState<string | null>(null);
+  const [missingTables, setMissingTables] = useState<string[]>([]);
+  const supabaseSetupSql = SUPABASE_SETUP_SQL;
+
+  // On mount async sync from Supabase
+  useEffect(() => {
+    async function initSupabaseSync() {
+      setSupabaseLoading(true);
+      setSupabaseStatus('loading');
+      try {
+        const tables = [
+          'products', 'partners', 'orders', 'withdrawals', 
+          'notifications', 'customers', 'categories', 'coupons'
+        ];
+        const missing: string[] = [];
+        const fetchedData: Partial<DBState> = {};
+        
+        // Query each table
+        for (const t of tables) {
+          const { data, error } = await supabase.from(t).select('*');
+          if (error) {
+            console.error(`Error querying table ${t} from Supabase:`, error);
+            const errMsg = error.message || '';
+            const errCode = error.code || '';
+            if (
+              errCode === '42P01' || 
+              errCode === 'PGRST116' ||
+              errMsg.includes('does not exist') ||
+              errMsg.includes('schema cache') ||
+              errMsg.includes('Could not find the table')
+            ) {
+              missing.push(t);
+            } else {
+              throw error;
+            }
+          } else {
+            fetchedData[t as keyof DBState] = data;
+          }
+        }
+        
+        if (missing.length > 0) {
+          console.warn("Supabase database tables are missing:", missing);
+          setSupabaseStatus('needs_tables');
+          setMissingTables(missing);
+          setSupabaseLoading(false);
+          return;
+        }
+        
+        const initialDB = loadDB();
+        const upserts: Promise<any>[] = [];
+        let weSeededSome = false;
+
+        const safeInsert = async (table: string, serializedData: any) => {
+          try {
+            await supabase.from(table).insert(serializedData);
+          } catch (e) {
+            console.error(`[Supabase Seed Error] Failed inserting row into ${table}:`, e);
+          }
+        };
+
+        // Sync Products
+        const rawProducts = fetchedData.products || [];
+        let finalProducts = rawProducts.map(deserializeProduct);
+        if (finalProducts.length === 0) {
+          weSeededSome = true;
+          finalProducts = initialDB.products;
+          initialDB.products.forEach(p => {
+            upserts.push(safeInsert('products', serializeProduct(p)));
+          });
+        }
+
+        // Sync Categories
+        const rawCategories = fetchedData.categories || [];
+        let finalCategories = rawCategories.map(deserializeCategory);
+        if (finalCategories.length === 0) {
+          weSeededSome = true;
+          finalCategories = initialDB.categories;
+          initialDB.categories.forEach(c => {
+            upserts.push(safeInsert('categories', serializeCategory(c)));
+          });
+        }
+
+        // Sync Coupons
+        const rawCoupons = fetchedData.coupons || [];
+        let finalCoupons = rawCoupons.map(deserializeCoupon);
+        if (finalCoupons.length === 0) {
+          weSeededSome = true;
+          finalCoupons = initialDB.coupons;
+          initialDB.coupons.forEach(c => {
+            upserts.push(safeInsert('coupons', serializeCoupon(c)));
+          });
+        }
+
+        // Sync Partners
+        const rawPartners = fetchedData.partners || [];
+        let finalPartners = rawPartners.map(deserializePartner);
+        if (finalPartners.length === 0) {
+          weSeededSome = true;
+          finalPartners = initialDB.partners;
+          initialDB.partners.forEach(p => {
+            upserts.push(safeInsert('partners', serializePartner(p)));
+          });
+        }
+
+        // Sync Customers
+        const rawCustomers = fetchedData.customers || [];
+        let finalCustomers = rawCustomers.map(deserializeCustomer);
+        if (finalCustomers.length === 0) {
+          weSeededSome = true;
+          finalCustomers = initialDB.customers;
+          initialDB.customers.forEach(c => {
+            upserts.push(safeInsert('customers', serializeCustomer(c)));
+          });
+        }
+
+        // Sync Orders
+        const rawOrders = fetchedData.orders || [];
+        let finalOrders = rawOrders.map(deserializeOrder);
+        if (finalOrders.length === 0) {
+          weSeededSome = true;
+          finalOrders = initialDB.orders;
+          initialDB.orders.forEach(o => {
+            upserts.push(safeInsert('orders', serializeOrder(o)));
+          });
+        }
+
+        // Sync Withdrawals
+        const rawWithdrawals = fetchedData.withdrawals || [];
+        let finalWithdrawals = rawWithdrawals.map(deserializeWithdrawal);
+        if (finalWithdrawals.length === 0) {
+          weSeededSome = true;
+          finalWithdrawals = initialDB.withdrawals;
+          initialDB.withdrawals.forEach(w => {
+            upserts.push(safeInsert('withdrawals', serializeWithdrawal(w)));
+          });
+        }
+
+        // Sync Notifications
+        const rawNotifications = fetchedData.notifications || [];
+        let finalNotifications = rawNotifications.map(deserializeNotification);
+        if (finalNotifications.length === 0) {
+          weSeededSome = true;
+          finalNotifications = initialDB.notifications;
+          initialDB.notifications.forEach(n => {
+            upserts.push(safeInsert('notifications', serializeNotification(n)));
+          });
+        }
+
+        if (weSeededSome) {
+          console.log("Automatically seeding empty Supabase database tables with initial data!");
+          await Promise.allSettled(upserts);
+        }
+
+        setDbState({
+          products: finalProducts,
+          categories: finalCategories,
+          coupons: finalCoupons,
+          partners: finalPartners,
+          customers: finalCustomers,
+          orders: finalOrders,
+          withdrawals: finalWithdrawals,
+          notifications: finalNotifications
+        });
+
+        console.log("Successfully connected and synced with Supabase!");
+        setSupabaseStatus('connected');
+        setSupabaseErrorMsg(null);
+      } catch (err: any) {
+        console.error("Critical error connecting/syncing with Supabase:", err);
+        setSupabaseStatus('error');
+        setSupabaseErrorMsg(err.message || 'Supabase connection failed');
+      } finally {
+        setSupabaseLoading(false);
+      }
+    }
+    initSupabaseSync();
+  }, []);
 
   // Subscribe to onAuthStateChange and handle session persistence / auto refresh
   useEffect(() => {
@@ -313,6 +523,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     saveDB(dbState);
   }, [dbState]);
+
+  // Synchronize state changes to Supabase in the background
+  const lastSyncedRef = React.useRef<DBState | null>(null);
+
+  useEffect(() => {
+    // Only sync if Supabase is connected and ready
+    if (supabaseStatus !== 'connected' || !dbState) return;
+
+    // Initialize the ref on the first load so we don't re-upload everything initially
+    if (!lastSyncedRef.current) {
+      lastSyncedRef.current = dbState;
+      return;
+    }
+
+    const prev = lastSyncedRef.current;
+    
+    // We will collect and perform table updates dynamically
+    const syncTable = async <T extends { id: string }>(
+      tableName: string,
+      currentList: T[],
+      prevList: T[],
+      serializer: (item: T) => any
+    ) => {
+      // 1. Find Added or Modified items
+      const upserts: any[] = [];
+      currentList.forEach(item => {
+        const lastItem = prevList.find(pi => pi.id === item.id);
+        const hasChanged = !lastItem || JSON.stringify(lastItem) !== JSON.stringify(item);
+        if (hasChanged) {
+          upserts.push(serializer(item));
+        }
+      });
+
+      // 2. Find Deleted items
+      const deletes: string[] = [];
+      prevList.forEach(pi => {
+        const stillExists = currentList.some(item => item.id === pi.id);
+        if (!stillExists) {
+          deletes.push(pi.id);
+        }
+      });
+
+      // Perform Live Queries
+      if (upserts.length > 0) {
+        console.log(`[Supabase Sync] Upserting ${upserts.length} items to table ${tableName}...`);
+        const { error } = await supabase.from(tableName).upsert(upserts);
+        if (error) {
+          console.error(`[Supabase Sync Error] Failed upsert in table ${tableName}:`, error);
+        }
+      }
+
+      if (deletes.length > 0) {
+        console.log(`[Supabase Sync] Deleting ${deletes.length} items from table ${tableName}...`, deletes);
+        const { error } = await supabase.from(tableName).delete().in('id', deletes);
+        if (error) {
+          console.error(`[Supabase Sync Error] Failed deletion from table ${tableName}:`, error);
+        }
+      }
+    };
+
+    const runSync = async () => {
+      try {
+        await Promise.all([
+          syncTable('products', dbState.products, prev.products, serializeProduct),
+          syncTable('categories', dbState.categories || [], prev.categories || [], serializeCategory),
+          syncTable('coupons', dbState.coupons || [], prev.coupons || [], serializeCoupon),
+          syncTable('partners', dbState.partners, prev.partners, serializePartner),
+          syncTable('customers', dbState.customers, prev.customers, serializeCustomer),
+          syncTable('orders', dbState.orders, prev.orders, serializeOrder),
+          syncTable('withdrawals', dbState.withdrawals, prev.withdrawals, serializeWithdrawal),
+          syncTable('notifications', dbState.notifications, prev.notifications, serializeNotification),
+        ]);
+        
+        // Update reference
+        lastSyncedRef.current = dbState;
+      } catch (err) {
+        console.error("Supabase live reactive sync runtime error:", err);
+      }
+    };
+
+    runSync();
+  }, [dbState, supabaseStatus]);
 
   const setPriceFormat = (amount: number) => {
     return lang === 'bn' 
@@ -680,6 +972,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  const syncProductsWithSupabase = async (): Promise<{ success: boolean; count?: number; error?: string }> => {
+    try {
+      // 1. Fetch live products from Supabase
+      const { data, error } = await supabase.from('products').select('*');
+      if (error) {
+        throw error;
+      }
+
+      const liveProducts = (data || []).map(deserializeProduct);
+
+      // 2. Identify mismatch / merge logic:
+      // We upsert all local products right now so local changes are guaranteed to reach Supabase.
+      const localProducts = dbState.products;
+      const upserts = localProducts.map(p => serializeProduct(p));
+
+      if (upserts.length > 0) {
+        const { error: upsertError } = await supabase.from('products').upsert(upserts);
+        if (upsertError) {
+          throw upsertError;
+        }
+      }
+
+      // 3. Merging: If there are products on Supabase that don't exist locally, add them
+      const localIds = new Set(localProducts.map(p => p.id));
+      const newlyPulledProducts = liveProducts.filter(lp => !localIds.has(lp.id));
+
+      const finalMergedProducts = [...localProducts];
+      newlyPulledProducts.forEach(np => {
+        if (!finalMergedProducts.some(p => p.id === np.id)) {
+          finalMergedProducts.push(np);
+        }
+      });
+
+      // Update both local storage and current memory state
+      setDbState(prev => ({
+        ...prev,
+        products: finalMergedProducts
+      }));
+
+      setSupabaseStatus('connected');
+      setSupabaseErrorMsg(null);
+
+      return { success: true, count: finalMergedProducts.length };
+    } catch (err: any) {
+      console.error("Manual products sync error:", err);
+      return { success: false, error: err.message || 'Unknown error occurred' };
+    }
+  };
+
   // 5. MANUAL FUNDS WITHDRAWAL
   const requestWithdrawal = (
     partnerId: string,
@@ -849,6 +1190,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  // WooCommerce Dynamic Categories Management
+  const addCategory = (category: Omit<Category, 'id'>) => {
+    const nextId = `cat-${Date.now()}`;
+    const newCat: Category = {
+      ...category,
+      id: nextId
+    };
+    setDbState(prev => ({
+      ...prev,
+      categories: [...(prev.categories || []), newCat]
+    }));
+  };
+
+  const editCategory = (category: Category) => {
+    setDbState(prev => ({
+      ...prev,
+      categories: (prev.categories || []).map(c => c.id === category.id ? category : c)
+    }));
+  };
+
+  const deleteCategory = (id: string) => {
+    setDbState(prev => ({
+      ...prev,
+      categories: (prev.categories || []).filter(c => c.id !== id)
+    }));
+  };
+
+  // WooCommerce Dynamic Coupons Management
+  const addCoupon = (coupon: Omit<Coupon, 'id' | 'usageCount'>) => {
+    const nextId = `cp-${Date.now()}`;
+    const newCp: Coupon = {
+      ...coupon,
+      id: nextId,
+      usageCount: 0
+    };
+    setDbState(prev => ({
+      ...prev,
+      coupons: [...(prev.coupons || []), newCp]
+    }));
+  };
+
+  const editCoupon = (coupon: Coupon) => {
+    setDbState(prev => ({
+      ...prev,
+      coupons: (prev.coupons || []).map(c => c.id === coupon.id ? coupon : c)
+    }));
+  };
+
+  const deleteCoupon = (id: string) => {
+    setDbState(prev => ({
+      ...prev,
+      coupons: (prev.coupons || []).filter(c => c.id !== id)
+    }));
+  };
+
   return (
     <AppContext.Provider value={{
       products: dbState.products,
@@ -857,6 +1253,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       withdrawals: dbState.withdrawals,
       notifications: dbState.notifications,
       customers: dbState.customers,
+      categories: dbState.categories || [],
+      coupons: dbState.coupons || [],
       activePanel,
       selectedPartnerId,
       setPriceFormat,
@@ -864,17 +1262,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSelectedPartnerId,
       lang,
       setLang,
+      supabaseStatus,
+      supabaseLoading,
+      supabaseErrorMsg,
+      missingTables,
+      supabaseSetupSql,
       placeOrder,
       updateOrderStatus,
       approvePartner,
       addNewProduct,
       editProduct,
       deleteProduct,
+      syncProductsWithSupabase,
       requestWithdrawal,
       approveWithdrawal,
       clearNotifications,
       markNotificationsAsRead,
       addCustomer,
+      addCategory,
+      editCategory,
+      deleteCategory,
+      addCoupon,
+      editCoupon,
+      deleteCoupon,
       currentCustomer,
       currentPartner,
       isAdminLoggedIn,

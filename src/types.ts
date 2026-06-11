@@ -18,6 +18,30 @@ export interface Product {
   description: string;
   rating: number;
   reviewsCount: number;
+  isFeatured?: boolean;
+  status?: 'Draft' | 'Published';
+  salePrice?: number;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  bnName: string;
+  description?: string;
+  image?: string;
+  isActive: boolean;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discountType: 'Percentage' | 'Fixed';
+  amount: number;
+  minOrderAmount?: number;
+  usageLimit?: number;
+  usageCount: number;
+  isActive: boolean;
+  expiresDate?: string;
 }
 
 export interface OrderItem {

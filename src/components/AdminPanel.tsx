@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
-import { Product, Partner, Order, Withdrawal } from '../types';
+import { navigateToRoute } from '../navigation';
+import { Product, Partner, Order, Withdrawal, Category, Coupon } from '../types';
 import { supabase } from '../supabaseClient';
 import { SupabaseRLSConsole } from './SupabaseRLSConsole';
+import { getCategoryLabel, getLocalizedProductName } from '../utils/faithDate';
 import { 
   Users, Layers, ShoppingCart, Percent, TrendingUp, AlertTriangle, Shield, 
-  MapPin, Plus, Edit3, Trash2, Check, X, FileText, ArrowDown, ArrowUp, Activity, PieChart
+  MapPin, Plus, Edit3, Trash2, Check, X, FileText, ArrowDown, ArrowUp, Activity, PieChart,
+  Database, RefreshCw
 } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
@@ -22,27 +25,39 @@ export const AdminPanel: React.FC = () => {
     addNewProduct, 
     editProduct, 
     deleteProduct, 
+    syncProductsWithSupabase,
+    supabaseStatus,
+    supabaseErrorMsg,
     approveWithdrawal,
     lang,
     isAdminLoggedIn,
     logout,
-    setShowAuthTab
+    setShowAuthTab,
+    categories,
+    coupons,
+    addCategory,
+    editCategory,
+    deleteCategory,
+    addCoupon,
+    editCoupon,
+    deleteCoupon,
+    placeOrder
   } = useApp();
 
   // Dynamic Session Protection Guard
   useEffect(() => {
     const checkAdminSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        window.location.hash = '#/login';
+      if (!session && !isAdminLoggedIn) {
+        navigateToRoute({ type: 'login' });
         setShowAuthTab('admin');
       }
     };
     checkAdminSession();
-  }, [setShowAuthTab]);
+  }, [isAdminLoggedIn, setShowAuthTab]);
 
   // Admin subsystem sub-tabs
-  const [activeSubTab, setActiveSubTab] = useState<'verify' | 'commissions' | 'inventory' | 'orders' | 'products' | 'finance' | 'analytics' | 'database'>('analytics');
+  const [activeSubTab, setActiveSubTab] = useState<'verify' | 'commissions' | 'inventory' | 'orders' | 'products' | 'finance' | 'analytics' | 'database' | 'categories' | 'coupons' | 'manual-orders'>('analytics');
   
   // Active simulated ERP role
   const [erpRole, setErpRole] = useState<'Super Admin' | 'Inventory Manager' | 'Finance Manager' | 'Customer Support'>('Super Admin');
@@ -50,10 +65,123 @@ export const AdminPanel: React.FC = () => {
   // Product CRUD states
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isSyncingProducts, setIsSyncingProducts] = useState(false);
+  const [syncStatusIcon, setSyncStatusIcon] = useState<'idle' | 'success' | 'fail'>('idle');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  // Product Search, Filtering and Multi-Selection States
+  const [prodSearchQuery, setProdSearchQuery] = useState('');
+  const [prodCategoryFilter, setProdCategoryFilter] = useState('All');
+  const [selectedProdIds, setSelectedProdIds] = useState<string[]>([]);
+
+  // Dynamic Category Creation and Catalog states
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatBnName, setNewCatBnName] = useState('');
+  const [newCatDesc, setNewCatDesc] = useState('');
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [showNewCatInput, setShowNewCatInput] = useState(false);
+
+  // Dynamic Coupon States
+  const [isAddingCoupon, setIsAddingCoupon] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [newCouponData, setNewCouponData] = useState({
+    code: '',
+    discountType: 'Percentage' as 'Percentage' | 'Fixed',
+    amount: 0,
+    minOrderAmount: 0,
+    usageLimit: 0,
+    isActive: true
+  });
+
+  // Manual Order states
+  const [manualOrderItems, setManualOrderItems] = useState<{ product: Product; quantity: number }[]>([]);
+  const [manualCustDetails, setManualCustDetails] = useState({
+    name: '',
+    mobile: '',
+    email: '',
+    address: '',
+    district: '',
+    area: '',
+    referralCode: '',
+    paymentMethod: 'Cash on Delivery' as any
+  });
+  const [manualOrderCoupon, setManualOrderCoupon] = useState<Coupon | null>(null);
+
+  // Custom modals as replacement for window.alert and window.confirm within iframe sandbox
+  const [modalConfirm, setModalConfirm] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }>({
+    show: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
+  const [modalAlert, setModalAlert] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+  }>({
+    show: false,
+    title: '',
+    message: ''
+  });
+
+  const triggerAlert = (title: string, message: string) => {
+    setModalAlert({ show: true, title, message });
+  };
+
+  const triggerConfirm = (title: string, message: string, onConfirm: () => void, confirmText?: string, cancelText?: string) => {
+    setModalConfirm({
+      show: true,
+      title,
+      message,
+      onConfirm,
+      confirmText,
+      cancelText
+    });
+  };
+
+  const allCategoriesList = Array.from(new Set([
+    ...categories.filter(c => c.isActive).map(c => c.name),
+    ...products.map(p => p.category)
+  ])).filter(Boolean);
+
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(prodSearchQuery.toLowerCase()) || 
+                          p.sku.toLowerCase().includes(prodSearchQuery.toLowerCase()) ||
+                          p.category.toLowerCase().includes(prodSearchQuery.toLowerCase());
+    const matchesCategory = prodCategoryFilter === 'All' || p.category === prodCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => selectedProdIds.includes(p.id));
+
+  const toggleProdSelection = (id: string) => {
+    setSelectedProdIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllFilteredProducts = () => {
+    if (allFilteredSelected) {
+      const filteredIds = filteredProducts.map(p => p.id);
+      setSelectedProdIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      const filteredIds = filteredProducts.map(p => p.id);
+      setSelectedProdIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
   const [newProdData, setNewProdData] = useState({
     name: '',
     sku: '',
-    category: 'Pure Food Collection',
+    category: 'Dry Food',
     price: 0,
     costPrice: 0,
     stockQty: 10,
@@ -127,7 +255,7 @@ export const AdminPanel: React.FC = () => {
     setNewProdData({
       name: '',
       sku: '',
-      category: 'Pure Food Collection',
+      category: 'Dry Food',
       price: 0,
       costPrice: 0,
       stockQty: 10,
@@ -148,7 +276,66 @@ export const AdminPanel: React.FC = () => {
     if (editingProduct) {
       editProduct(editingProduct);
       setEditingProduct(null);
+      alert(lang === 'bn' ? 'প্রোডাক্ট তথ্য সফলভাবে আপডেট করা হয়েছে!' : 'Product catalog updated successfully!');
     }
+  };
+
+  const triggerProductsSync = async () => {
+    setIsSyncingProducts(true);
+    setSyncStatusIcon('idle');
+    setSyncMessage(lang === 'bn' ? 'Supabase এর সাথে প্রোডাক্ট মেলাচ্ছি...' : 'Syncing products with Supabase...');
+    
+    let success = false;
+    let errMsg = '';
+    
+    try {
+      const res = await syncProductsWithSupabase();
+      if (res.success) {
+        success = true;
+        setSyncStatusIcon('success');
+        setSyncMessage(
+          lang === 'bn' 
+            ? `সফলভাবে মোট ${res.count} টি প্রোডাক্ট সিঙ্ক করা হয়েছে!` 
+            : `Success! Synchronized ${res.count} products with Database.`
+        );
+      } else {
+        errMsg = res.error || 'Unknown error';
+        setSyncStatusIcon('fail');
+        setSyncMessage(
+          lang === 'bn' 
+            ? `ব্যর্থ হয়েছে: ${errMsg}` 
+            : `Failed: ${errMsg}`
+        );
+      }
+    } catch (err: any) {
+      errMsg = err.message || 'Sync failed.';
+      setSyncStatusIcon('fail');
+      setSyncMessage(errMsg);
+    } finally {
+      setIsSyncingProducts(false);
+      
+      const isColumnErr = errMsg.toLowerCase().includes('column') || errMsg.toLowerCase().includes('is_featured') || errMsg.toLowerCase().includes('not found');
+      if (!isColumnErr && success) {
+        setTimeout(() => {
+          setSyncMessage(null);
+        }, 5000);
+      }
+    }
+  };
+
+  const handleCreateCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = newCatName.trim();
+    if (!cleanName) return;
+    if (allCategoriesList.some(c => c.toLowerCase() === cleanName.toLowerCase())) {
+      alert(lang === 'bn' ? 'এই ক্যাটাগরি ইতিমধ্যে বিদ্যমান রয়েছে!' : 'This category already exists!');
+      return;
+    }
+    // Router to global context
+    addCategory({ name: cleanName, bnName: cleanName, description: '', isActive: true });
+    setNewCatName('');
+    setShowNewCatInput(false);
+    alert(lang === 'bn' ? 'নতুন ক্যাটাগরি তৈরি সফল হয়েছে!' : 'New category created successfully!');
   };
 
   // Find Pending Imam Verifications
@@ -300,6 +487,39 @@ export const AdminPanel: React.FC = () => {
             }`}
           >
             {lang === 'bn' ? '🛡️ সুপাবেস আরএলএস ডাটা সিকিউরিটি' : '🛡️ Supabase RLS Policies'}
+          </button>
+          <button
+            id="tab-erp-categories"
+            onClick={() => setActiveSubTab('categories')}
+            className={`py-3 px-4 rounded-t-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'categories' 
+                ? 'bg-amber-600 text-white border-b-2 border-amber-600' 
+                : 'text-stone-600 hover:bg-stone-50'
+            }`}
+          >
+            {lang === 'bn' ? '📂 ক্যাটাগরি ম্যানেজার' : '📂 WooCommerce Categories'}
+          </button>
+          <button
+            id="tab-erp-coupons"
+            onClick={() => setActiveSubTab('coupons')}
+            className={`py-3 px-4 rounded-t-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'coupons' 
+                ? 'bg-amber-600 text-white border-b-2 border-amber-600' 
+                : 'text-stone-600 hover:bg-stone-50'
+            }`}
+          >
+            {lang === 'bn' ? '🎟️ ডিসকাউন্ট কুপন বুক' : '🎟️ WooCommerce Coupons'}
+          </button>
+          <button
+            id="tab-erp-manual-orders"
+            onClick={() => setActiveSubTab('manual-orders')}
+            className={`py-3 px-4 rounded-t-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'manual-orders' 
+                ? 'bg-amber-600 text-white border-b-2 border-amber-600' 
+                : 'text-stone-600 hover:bg-stone-50'
+            }`}
+          >
+            {lang === 'bn' ? '🛒 ম্যানুয়াল অর্ডার (POS)' : '🛒 Manual Order (POS)'}
           </button>
         </div>
       </div>
@@ -717,7 +937,7 @@ export const AdminPanel: React.FC = () => {
                       <button
                         id={`btn-adjust-stock-add-${p.id}`}
                         onClick={() => {
-                          const amt = Number(prompt(`Add stock amount for ${p.sku}:`, '10'));
+                          const amt = Number(prompt(lang === 'bn' ? `স্টক যোগ করুন ${p.sku}:` : `Add stock amount for ${p.sku}:`, '10'));
                           if (amt && amt > 0) {
                             p.stockQty += amt;
                             editProduct(p);
@@ -725,7 +945,7 @@ export const AdminPanel: React.FC = () => {
                         }}
                         className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-150 text-emerald-800 font-bold py-1.5 px-3 rounded-lg flex-1 transition-colors cursor-pointer text-center"
                       >
-                        + Adjust Stock holding (+qty)
+                        + {lang === 'bn' ? 'স্টক পরিবর্তন' : 'Adjust Stock holding'} (+qty)
                       </button>
                     </div>
                   </div>
@@ -738,195 +958,748 @@ export const AdminPanel: React.FC = () => {
         {/* TAB F: PRODUCT CATALOG MANAGER */}
         {activeSubTab === 'products' && (
           <div className="space-y-6 text-left">
-            <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h3 className="font-display font-extrabold text-base text-stone-900">📦 DadaJan Product Directory Catalog</h3>
-                  <p className="text-xs text-stone-500">Insert new Sunnah collection packs, adjust retail pricing, or configure certified media flags.</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Left Column: Category Manager */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-display font-extrabold text-base text-stone-900 flex items-center gap-1.5 font-sans">
+                      📁 {lang === 'bn' ? 'ক্যাটাগরি ডিরেক্টরি' : 'Category Directory'}
+                    </h3>
+                    <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-bold">
+                      {allCategoriesList.length} {lang === 'bn' ? 'টি' : 'Total'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 mb-4">
+                    {lang === 'bn' 
+                      ? 'নতুন ক্যাটাগরি তৈরি করতে পারেন বা সক্রিয় ক্যাটাগরিগুলোর পণ্য সংখ্যা দেখতে পারেন।' 
+                      : 'Create new custom product classification tiers or track current inventory counts.'}
+                  </p>
+
+                  {/* Active categories with item count */}
+                  <div className="space-y-2 mb-6">
+                    {allCategoriesList.map((cat) => {
+                      const itemCount = products.filter(p => p.category === cat).length;
+                      return (
+                        <div key={cat} className="flex justify-between items-center p-3 rounded-xl bg-stone-50 border border-stone-150 text-xs">
+                          <div>
+                            <span className="font-bold text-stone-900 block">{cat}</span>
+                            <span className="text-[10px] text-stone-400 block font-medium">
+                              {getCategoryLabel(cat, lang)}
+                            </span>
+                          </div>
+                          <span className="font-mono text-[11px] font-black bg-white border px-2 py-0.5 rounded-md text-stone-600">
+                            {itemCount} {lang === 'bn' ? 'পণ্য' : 'Items'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Quick Inline Creation Form */}
+                  {!showNewCatInput ? (
+                    <button
+                      type="button"
+                      id="btn-admin-add-cat-start"
+                      onClick={() => setShowNewCatInput(true)}
+                      className="w-full bg-[#FAF9F5] hover:bg-amber-50/50 text-[#92400e] border border-amber-200/50 rounded-xl py-2 px-3 text-xs font-bold font-sans cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Plus className="w-4 h-4 text-amber-600" /> {lang === 'bn' ? 'নতুন ক্যাটাগরি তৈরি করুন' : 'Create New Category'}
+                    </button>
+                  ) : (
+                    <form onSubmit={handleCreateCategory} className="p-3.5 bg-amber-50/50 border border-amber-200/60 rounded-2xl space-y-3 animate-fadeIn">
+                      <div>
+                        <label className="block text-[10px] font-bold text-[#92400e] uppercase mb-1">
+                          {lang === 'bn' ? 'ক্যাটাগরির নাম (ইংরেজি):' : 'New Category Name (English identifier):'}
+                        </label>
+                        <input
+                          type="text"
+                          id="input-newcat-name"
+                          required
+                          value={newCatName}
+                          onChange={(e) => setNewCatName(e.target.value)}
+                          placeholder="e.g. Raw Honey, Organic Seeds"
+                          className="w-full bg-white border border-stone-200 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          id="btn-newcat-cancel"
+                          onClick={() => {
+                            setNewCatName('');
+                            setShowNewCatInput(false);
+                          }}
+                          className="flex-1 bg-white border text-stone-600 border-stone-200 font-bold text-[11px] py-1.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          {lang === 'bn' ? 'বাতিল' : 'Cancel'}
+                        </button>
+                        <button
+                          type="submit"
+                          id="btn-newcat-submit"
+                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] py-1.5 rounded-lg transition-colors cursor-pointer text-center"
+                        >
+                          {lang === 'bn' ? 'তৈরি করুন' : 'Save'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
-                <button
-                  id="btn-admin-add-prod-start"
-                  onClick={() => setIsAddingProduct(true)}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs py-2 px-4 rounded-xl flex items-center gap-1 cursor-pointer transition-all shadow-sm"
-                >
-                  <Plus className="w-4 h-4" /> Add New Product
-                </button>
               </div>
 
-              {/* Add Product Form */}
-              {isAddingProduct && (
-                <form onSubmit={handleCreateProductSubmit} className="bg-stone-50/50 p-5 rounded-2xl border border-stone-200/75 space-y-4 mb-6">
-                  <div className="flex justify-between items-center border-b pb-3 border-stone-200 mb-2">
-                    <h4 className="font-bold text-xs text-stone-900 uppercase">New Product Creation Flow</h4>
-                    <button 
-                      type="button" 
-                      id="btn-add-prod-cancel"
-                      onClick={() => setIsAddingProduct(false)} 
-                      className="text-stone-400 font-extrabold text-sm hover:text-stone-750"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+              {/* Right Column: Catalog List or Form */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* 1. Edit Product Form */}
+                {editingProduct && (
+                  <div className="bg-white rounded-3xl p-6 border-2 border-amber-500 shadow-md animate-fadeIn">
+                    <form onSubmit={handleEditProductSubmit} className="space-y-4">
+                      <div className="flex justify-between items-center border-b pb-3 border-stone-200 mb-2">
+                        <div>
+                          <span className="text-[10px] bg-amber-600 text-slate-950 font-black px-2 py-0.5 rounded tracking-wider uppercase">
+                            {lang === 'bn' ? 'পণ্য সংশোধন করুন' : 'Product Modification Utility'}
+                          </span>
+                          <h4 className="font-extrabold text-sm text-stone-900 mt-1">{editingProduct.name}</h4>
+                        </div>
+                        <button 
+                          type="button" 
+                          id="btn-edit-prod-cancel"
+                          onClick={() => setEditingProduct(null)} 
+                          className="text-stone-400 font-extrabold text-sm hover:text-stone-750 p-1 bg-stone-50 rounded-lg hover:bg-stone-100"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Product Name:</label>
-                      <input
-                        type="text"
-                        id="input-newprod-name"
-                        required
-                        value={newProdData.name}
-                        onChange={(e) => setNewProdData({ ...newProdData, name: e.target.value })}
-                        className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">SKU identifier:</label>
-                      <input
-                        type="text"
-                        id="input-newprod-sku"
-                        required
-                        value={newProdData.sku}
-                        onChange={(e) => setNewProdData({ ...newProdData, sku: e.target.value })}
-                        className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
-                      />
-                    </div>
-                  </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Product Name / Title (with Bengali parenthesis):</label>
+                          <input
+                            type="text"
+                            id="input-editprod-name"
+                            required
+                            value={editingProduct.name}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">SKU identification key:</label>
+                          <input
+                            type="text"
+                            id="input-editprod-sku"
+                            required
+                            value={editingProduct.sku}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, sku: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Price Retail BDT:</label>
-                      <input
-                        type="number"
-                        id="input-newprod-price"
-                        required
-                        value={newProdData.price}
-                        onChange={(e) => setNewProdData({ ...newProdData, price: Number(e.target.value) })}
-                        className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Cost Price BDT (For Split Profit calculation):</label>
-                      <input
-                        type="number"
-                        id="input-newprod-cost"
-                        required
-                        value={newProdData.costPrice}
-                        onChange={(e) => setNewProdData({ ...newProdData, costPrice: Number(e.target.value) })}
-                        className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Immediate Stock holdings:</label>
-                      <input
-                        type="number"
-                        id="input-newprod-stock font-mono"
-                        required
-                        value={newProdData.stockQty}
-                        onChange={(e) => setNewProdData({ ...newProdData, stockQty: Number(e.target.value) })}
-                        className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Category:</label>
-                      <select
-                        id="select-newprod-category"
-                        value={newProdData.category}
-                        onChange={(e) => setNewProdData({ ...newProdData, category: e.target.value })}
-                        className="w-full bg-white border border-stone-200 rounded-xl px-2.5 py-2 text-xs"
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Price Retail BDT:</label>
+                          <input
+                            type="number"
+                            id="input-editprod-price"
+                            required
+                            value={editingProduct.price}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Cost Price BDT:</label>
+                          <input
+                            type="number"
+                            id="input-editprod-cost"
+                            required
+                            value={editingProduct.costPrice}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, costPrice: Number(e.target.value) })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Available Stock Qty:</label>
+                          <input
+                            type="number"
+                            id="input-editprod-stock"
+                            required
+                            value={editingProduct.stockQty}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, stockQty: Number(e.target.value) })}
+                            className="w-full bg-white border border-stone-150 rounded-xl px-3 py-2 text-xs font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Category tier:</label>
+                          <select
+                            id="select-editprod-category"
+                            value={editingProduct.category}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-2.5 py-2 text-xs font-bold"
+                          >
+                            {allCategoriesList.map(cat => (
+                              <option key={cat} value={cat}>{getCategoryLabel(cat, lang)}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Fulfillment Origin description:</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingProduct.origin}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, origin: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Video Stream proof URL:</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingProduct.videoUrl}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, videoUrl: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Product Specifications (Ingredients):</label>
+                          <input
+                            type="text"
+                            value={editingProduct.ingredients || ''}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, ingredients: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
+                            placeholder="e.g. Pure nectar extraction, Organic compounds"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Product Hero Image URL (Unsplash):</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingProduct.images[0] || ''}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, images: [e.target.value] })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Detailed Description Storybook:</label>
+                        <textarea
+                          required
+                          rows={2}
+                          value={editingProduct.description}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                          className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs leading-relaxed"
+                        />
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          id="btn-editprod-form-cancel"
+                          onClick={() => setEditingProduct(null)}
+                          className="flex-1 bg-stone-150 hover:bg-stone-200 text-stone-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer text-center"
+                        >
+                          Cancel Changes
+                        </button>
+                        <button
+                          type="submit"
+                          id="btn-editprod-form-save"
+                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer text-center"
+                        >
+                          💾 Save & Update Active Listing
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* 2. Add Product Form */}
+                {isAddingProduct && (
+                  <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm animate-fadeIn">
+                    <form onSubmit={handleCreateProductSubmit} className="space-y-4">
+                      <div className="flex justify-between items-center border-b pb-3 border-stone-200 mb-2">
+                        <h4 className="font-bold text-xs text-stone-900 uppercase">New Product Creation Flow</h4>
+                        <button 
+                          type="button" 
+                          id="btn-add-prod-cancel"
+                          onClick={() => setIsAddingProduct(false)} 
+                          className="text-stone-400 font-extrabold text-sm hover:text-stone-750"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Product Name:</label>
+                          <input
+                            type="text"
+                            id="input-newprod-name"
+                            required
+                            placeholder="e.g. Organic Chia Seed (প্রাকৃতিক চিয়া সিড)"
+                            value={newProdData.name}
+                            onChange={(e) => setNewProdData({ ...newProdData, name: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">SKU identifier:</label>
+                          <input
+                            type="text"
+                            id="input-newprod-sku"
+                            required
+                            placeholder="e.g. SKU-CHIA-ORG-500"
+                            value={newProdData.sku}
+                            onChange={(e) => setNewProdData({ ...newProdData, sku: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Price Retail BDT:</label>
+                          <input
+                            type="number"
+                            id="input-newprod-price"
+                            required
+                            value={newProdData.price || ''}
+                            onChange={(e) => setNewProdData({ ...newProdData, price: Number(e.target.value) })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Cost Price BDT (For Profit split):</label>
+                          <input
+                            type="number"
+                            id="input-newprod-cost"
+                            required
+                            value={newProdData.costPrice || ''}
+                            onChange={(e) => setNewProdData({ ...newProdData, costPrice: Number(e.target.value) })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Immediate Stock holdings:</label>
+                          <input
+                            type="number"
+                            id="input-newprod-stock font-mono"
+                            required
+                            value={newProdData.stockQty}
+                            onChange={(e) => setNewProdData({ ...newProdData, stockQty: Number(e.target.value) })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Category:</label>
+                          <select
+                            id="select-newprod-category"
+                            value={newProdData.category}
+                            onChange={(e) => setNewProdData({ ...newProdData, category: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-2.5 py-2 text-xs font-bold"
+                          >
+                            {allCategoriesList.map(cat => (
+                              <option key={cat} value={cat}>{getCategoryLabel(cat, lang)}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Origin story address:</label>
+                          <input
+                            type="text"
+                            id="input-newprod-origin"
+                            value={newProdData.origin}
+                            onChange={(e) => setNewProdData({ ...newProdData, origin: e.target.value })}
+                            placeholder="যেমন- Deep forests of Sundarbans"
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Video Source Proof URL (15s):</label>
+                          <input
+                            type="text"
+                            id="input-newprod-video"
+                            value={newProdData.videoUrl}
+                            onChange={(e) => setNewProdData({ ...newProdData, videoUrl: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Organic specifications (Ingredients):</label>
+                          <input
+                            type="text"
+                            value={newProdData.ingredients}
+                            onChange={(e) => setNewProdData({ ...newProdData, ingredients: e.target.value })}
+                            placeholder="e.g. 100% Raw unrefined botanical seed extract"
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Main Cover Image URL (Unsplash):</label>
+                          <input
+                            type="text"
+                            value={newProdData.images[0]}
+                            onChange={(e) => setNewProdData({ ...newProdData, images: [e.target.value] })}
+                            className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Fulfillment Description details:</label>
+                        <textarea
+                          rows={2}
+                          value={newProdData.description}
+                          onChange={(e) => setNewProdData({ ...newProdData, description: e.target.value })}
+                          placeholder="Provide deep descriptions on standard purity proof logs and sourcing process..."
+                          className="w-full bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs leading-relaxed"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        id="btn-confirm-add-prod"
+                        className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-3 rounded-xl transition-all cursor-pointer text-center"
                       >
-                        <option value="Pure Food Collection">Pure Food Collection</option>
-                        <option value="Sunnah & Lifestyle">Sunnah & Lifestyle</option>
-                        <option value="Special Collections">Special Collections</option>
+                        🚀 Save and Deploy in Active Catalog
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* 3. Product Directory Catalog List */}
+                <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm">
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="font-display font-extrabold text-[#0f766e] text-base">📦 {lang === 'bn' ? 'সিস্টেম প্রোডাক্ট ক্যাটালগ' : 'System Product Catalog'}</h3>
+                      <p className="text-xs text-stone-505 shadow-sm">{lang === 'bn' ? 'সরাসরি পণ্য সংশোধন, কমিশন এবং স্টক তদারকি করুন।' : 'Review direct product pricing, reference commissions and edit catalog indexes.'}</p>
+                    </div>
+                    {!isAddingProduct && !editingProduct && (
+                      <button
+                        id="btn-admin-add-prod-start-alt"
+                        onClick={() => setIsAddingProduct(true)}
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2 px-3 rounded-xl flex items-center gap-1 cursor-pointer transition-all shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> {lang === 'bn' ? 'নতুন পণ্য যোগ' : 'Add New Product'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Real-time sync & control panel */}
+                  <div className="mb-6 p-4 rounded-2xl bg-stone-50 border border-stone-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-2 h-2 rounded-full ${
+                        supabaseStatus === 'connected' ? 'bg-emerald-500 animate-pulse' :
+                        supabaseStatus === 'needs_tables' ? 'bg-amber-500 animate-pulse' :
+                        'bg-rose-500'
+                      }`} />
+                      <div>
+                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block font-mono">
+                          Database Connection Engine
+                        </span>
+                        <div className="text-xs text-stone-800 font-bold flex items-center gap-1">
+                          <span>Supabase Status:</span>
+                          <span className={`${
+                            supabaseStatus === 'connected' ? 'text-emerald-700 font-extrabold' :
+                            supabaseStatus === 'needs_tables' ? 'text-amber-700 font-bold' :
+                            'text-rose-600'
+                          }`}>
+                            {supabaseStatus === 'connected' ? (lang === 'bn' ? 'সংযুক্ত (লাইভ সিঙ্ক চালু)' : 'Connected (Live Auto-Sync Active)') : 
+                             supabaseStatus === 'needs_tables' ? (lang === 'bn' ? 'টেবিল নেই (সেটআপ প্রয়োজন)' : 'Disconnected / Needs Setup') : 
+                             (lang === 'bn' ? 'ত্রুটি' : 'Offline / Connection Failure')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={triggerProductsSync}
+                        disabled={isSyncingProducts}
+                        className={`font-bold text-xs py-2 px-3 rounded-xl flex items-center gap-1.5 cursor-pointer border transition-all ${
+                          isSyncingProducts 
+                            ? 'bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed animate-pulse'
+                            : 'bg-white text-[#0f766e] border-[#0f766e]/30 hover:bg-stone-50 shadow-sm active:scale-95'
+                        }`}
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncingProducts ? 'animate-spin' : ''}`} />
+                        <span>{lang === 'bn' ? 'Supabase এর সাথে সিঙ্ক করুন' : 'Sync Products with Supabase'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {syncMessage && (
+                    <div className={`mb-4 px-4 py-3 rounded-xl border flex flex-col gap-2 text-xs font-bold leading-relaxed ${
+                      syncStatusIcon === 'success' 
+                        ? 'bg-emerald-50 border-emerald-205 text-emerald-800' 
+                        : syncStatusIcon === 'fail' 
+                        ? 'bg-rose-50 border-rose-200 text-rose-800' 
+                        : 'bg-stone-50 border-stone-200 text-[#0f766e]'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4 shrink-0" />
+                        <span>{syncMessage}</span>
+                      </div>
+                      
+                      {syncStatusIcon === 'fail' && (syncMessage.toLowerCase().includes('column') || syncMessage.toLowerCase().includes('is_featured')) && (
+                        <div className="mt-2 p-3 bg-stone-950 text-[#fca5a5] rounded-xl border border-rose-950/40 font-mono text-[11px] font-normal leading-relaxed space-y-2">
+                          <p className="text-[11px] text-stone-200 font-sans font-bold">
+                            💡 {lang === 'bn' ? 'কীভাবে এই ত্রুটি সমাধান করবেন:' : 'How to resolve this schema mismatch error:'}
+                          </p>
+                          <p className="text-[10px] text-stone-300 font-sans">
+                            {lang === 'bn' 
+                              ? 'আপনার Supabase এ থাকা products টেবিলে কিছু নতুন কলাম নেই। আপনার বর্তমান পন্যের ডাটা অক্ষত রেখে টেবিলটি লেটেস্ট কলামে আপডেট করার জন্য নিচের কোডটি কপি করে Supabase SQL Editor এ রান করলেই সমস্যার সমাধান হয়ে যাবে:' 
+                              : 'Your database has outdated tables. Copy and execute the following SQL code inside your Supabase Dashboard > SQL Editor to add the missing metadata columns instantly while preserving all existing products:'}
+                          </p>
+                          <pre className="p-2.5 bg-stone-900 text-amber-400 rounded-lg border border-stone-800 text-[10px] select-all overflow-x-auto whitespace-pre leading-relaxed font-bold">
+{`-- Run this patch script inside Supabase SQL Editor:
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Published';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS sale_price NUMERIC;
+
+-- Add updated coupon tracking metadata columns
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS expires_date TEXT;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS min_order_amount NUMERIC;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS usage_limit INT;`}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Search, Category Filter, and Selection Console */}
+                  <div className="mb-5 grid grid-cols-1 md:grid-cols-12 gap-3 bg-stone-50 p-4 rounded-2xl border border-stone-200/60 shadow-xs">
+                    {/* Search Input */}
+                    <div className="md:col-span-5 relative">
+                      <input
+                        type="text"
+                        placeholder={lang === 'bn' ? 'পণ্যের নাম বা SKU খুঁজুন...' : 'Search product name or SKU...'}
+                        value={prodSearchQuery}
+                        onChange={(e) => setProdSearchQuery(e.target.value)}
+                        className="w-full pl-3 pr-3 py-2 bg-white border border-stone-200 rounded-xl text-xs font-semibold focus:ring-1 focus:ring-emerald-600 outline-none text-stone-800"
+                      />
+                    </div>
+
+                    {/* Category Filter */}
+                    <div className="md:col-span-4 flex items-center gap-2">
+                      <select
+                        value={prodCategoryFilter}
+                        onChange={(e) => setProdCategoryFilter(e.target.value)}
+                        className="w-full bg-white border border-stone-200 rounded-xl px-2.5 py-2 text-xs font-bold text-stone-700 outline-none focus:ring-1 focus:ring-emerald-600 cursor-pointer"
+                      >
+                        <option value="All">{lang === 'bn' ? 'সকল ক্যাটাগরি' : 'All Categories'}</option>
+                        {allCategoriesList.map(cat => (
+                          <option key={cat} value={cat}>{getCategoryLabel(cat, lang)}</option>
+                        ))}
                       </select>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Origin story address:</label>
-                      <input
-                        type="text"
-                        id="input-newprod-origin"
-                        value={newProdData.origin}
-                        onChange={(e) => setNewProdData({ ...newProdData, origin: e.target.value })}
-                        placeholder="जैसे- Deep forests of Sundarbans"
-                        className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Video Source Proof URL (15s):</label>
-                      <input
-                        type="text"
-                        id="input-newprod-video"
-                        value={newProdData.videoUrl}
-                        onChange={(e) => setNewProdData({ ...newProdData, videoUrl: e.target.value })}
-                        className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono"
-                      />
+                    {/* Stats */}
+                    <div className="md:col-span-3 flex items-center justify-end text-[11px] font-bold text-stone-500 font-sans">
+                      {lang === 'bn' ? `মোট পাওয়া গেছে: ${filteredProducts.length} টি` : `Found: ${filteredProducts.length} items`}
                     </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    id="btn-confirm-add-prod"
-                    className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-3 rounded-xl transition-all cursor-pointer text-center"
-                  >
-                    🚀 Save and Deploy in Active Catalog
-                  </button>
-                </form>
-              )}
+                  {/* Selected Multi-Products Batch Action operations console */}
+                  {selectedProdIds.length > 0 && (
+                    <div className="mb-5 p-4 rounded-2xl bg-[#eff6ff] border border-blue-150 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fadeIn">
+                      <div className="flex items-center gap-2.5">
+                        <div className="px-2.5 py-1 bg-blue-100/90 rounded-lg text-blue-800 shrink-0 font-extrabold text-xs">
+                          {selectedProdIds.length}
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-xs text-stone-800">
+                            {lang === 'bn' ? `${selectedProdIds.length} টি প্রোডাক্ট নির্বাচন করা হয়েছে` : `${selectedProdIds.length} Products Selected`}
+                          </h4>
+                          <p className="text-[10px] text-stone-550 leading-relaxed font-normal">
+                            {lang === 'bn' ? 'একসাথে নির্বাচিত পণ্যগুলোর উপর বাল্ক কার্যক্রম সম্পাদন করুন।' : 'Perform batch operations/deletions on all highlighted items concurrently.'}
+                          </p>
+                        </div>
+                      </div>
 
-              {/* Product list array */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b border-stone-200 text-stone-450">
-                      <th className="pb-2 font-bold uppercase">Product info</th>
-                      <th className="pb-2 font-bold uppercase">Category</th>
-                      <th className="pb-2 font-bold uppercase">Price Retail</th>
-                      <th className="pb-2 font-bold uppercase">Cost Price</th>
-                      <th className="pb-2 font-bold uppercase">Remaining Holdings</th>
-                      <th className="pb-2 font-bold uppercase text-right">Delete</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100 font-medium text-stone-700">
-                    {products.map(p => (
-                      <tr key={p.id} className="hover:bg-grid-row/25 transition-colors">
-                        <td className="py-2.5 flex items-center gap-2.5">
-                          <img src={p.images[0]} className="w-10 h-10 object-cover rounded-lg bg-stone-50 border border-stone-200" alt="" />
-                          <div>
-                            <span className="font-bold text-stone-900 block">{p.name}</span>
-                            <span className="text-[10px] text-stone-400 block font-mono">SKU: {p.sku}</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5">{p.category}</td>
-                        <td className="py-2.5 font-mono text-slate-900 font-bold">{setPriceFormat(p.price)}</td>
-                        <td className="py-2.5 font-mono text-stone-500">{setPriceFormat(p.costPrice)}</td>
-                        <td className="py-2.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            p.stockQty <= 5 ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-800'
-                          }`}>
-                            {p.stockQty} units remaining
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-right">
-                          <button
-                            id={`btn-catalog-delete-${p.id}`}
-                            onClick={() => {
-                              if (confirm(`Do you want to completely drop ${p.name} from public store?`)) {
-                                deleteProduct(p.id);
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Quick Increase stock or reset stock */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerConfirm(
+                              lang === 'bn' ? 'বাল্ক স্টক সেটআপ' : 'Bulk Stock Reset',
+                              lang === 'bn'
+                                ? `আপনি কি সত্যিই নির্বাচিত ${selectedProdIds.length} টি প্রোডাক্টের স্টক ৫০ এ আপডেট করতে চান?`
+                                : `Do you want to batch update the remaining stock of ${selectedProdIds.length} selected items to 50 units?`,
+                              () => {
+                                selectedProdIds.forEach(id => {
+                                  const prod = products.find(p => p.id === id);
+                                  if (prod) {
+                                    editProduct({ ...prod, stockQty: 50 });
+                                  }
+                                });
+                                triggerAlert(
+                                  lang === 'bn' ? 'স্টক সফল' : 'Batch Done',
+                                  lang === 'bn' ? 'স্টক সফলভাবে ৫০ সেটে আপডেট করা হয়েছে।' : 'Stock quantities configured successfully!'
+                                );
+                                setSelectedProdIds([]);
                               }
-                            }}
-                            className="p-1.5 hover:bg-red-50 hover:text-red-700 text-stone-300 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-4.5 h-4.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            );
+                          }}
+                          className="px-3 py-1.5 bg-[#2563eb] hover:bg-blue-700 text-white font-bold text-[10px] rounded-lg cursor-pointer transition shadow-xs"
+                        >
+                          {lang === 'bn' ? 'স্টক ৫০ করুন' : 'Set Stock to 50'}
+                        </button>
+
+                        {/* Batch Delete */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerConfirm(
+                              lang === 'bn' ? 'গণ মুছে ফেলা নিশ্চিতকরণ' : 'Confirm Bulk Erase',
+                              lang === 'bn'
+                                ? `আপনি কি নিশ্চিতভাবে এই ${selectedProdIds.length} টি প্রোডাক্ট ডিরেক্টরি থেকে একদম মুছে ফেলতে চান?`
+                                : `Are you sure you want to permanently erase all ${selectedProdIds.length} highlighted products from public store directories?`,
+                              () => {
+                                selectedProdIds.forEach(id => {
+                                  deleteProduct(id);
+                                });
+                                triggerAlert(
+                                  lang === 'bn' ? 'অনুশীলন সম্পন্ন' : 'Batch Removed',
+                                  lang === 'bn' ? 'প্রোডাক্টগুলো সফলভাবে মুছে ফেলা হয়েছে।' : 'Highlighted inventory rows successfully removed!'
+                                );
+                                setSelectedProdIds([]);
+                              }
+                            );
+                          }}
+                          className="px-3 py-1.5 bg-red-650 hover:bg-red-700 text-white font-bold text-[10px] rounded-lg cursor-pointer transition flex items-center gap-1 shadow-xs"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>{lang === 'bn' ? 'মুছে ফেলুন' : 'Delete Selected'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProdIds([])}
+                          className="px-2.5 py-1.5 text-stone-500 hover:text-stone-700 text-[10px] font-bold rounded-lg cursor-pointer transition border border-stone-200 bg-white shadow-xs"
+                        >
+                          {lang === 'bn' ? 'বাতিল' : 'Deselect'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead>
+                        <tr className="border-b border-stone-200 text-stone-450">
+                          {/* Multi select checkbox column in header */}
+                          <th className="pb-2 pl-1 w-8">
+                            <input
+                              type="checkbox"
+                              checked={allFilteredSelected}
+                              onChange={toggleAllFilteredProducts}
+                              className="w-4 h-4 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              title={lang === 'bn' ? 'সব নির্বাচন করুন' : 'Select All Filtered'}
+                            />
+                          </th>
+                          <th className="pb-2 font-bold uppercase">Product info</th>
+                          <th className="pb-2 font-bold uppercase">Category</th>
+                          <th className="pb-2 font-bold uppercase">Price Retail</th>
+                          <th className="pb-2 font-bold uppercase">Cost Price</th>
+                          <th className="pb-2 font-bold uppercase">Remaining Stock</th>
+                          <th className="pb-2 font-bold uppercase text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100 font-semibold text-stone-700">
+                        {filteredProducts.map(p => {
+                          const isSelected = selectedProdIds.includes(p.id);
+                          return (
+                            <tr key={p.id} className={`hover:bg-grid-row/25 transition-colors ${isSelected ? 'bg-emerald-50/20' : ''}`}>
+                              {/* Row Checkbox Selection Cell */}
+                              <td className="py-2.5 pl-1">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleProdSelection(p.id)}
+                                  className="w-4 h-4 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                />
+                              </td>
+                              <td className="py-2.5 flex items-center gap-2.5">
+                                <img src={p.images[0] || 'https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?auto=format&fit=crop&q=80&w=400'} className="w-10 h-10 object-cover rounded-lg bg-stone-50 border border-stone-200" alt="" referrerPolicy="no-referrer" />
+                                <div>
+                                  <span className="font-bold text-stone-900 block">{p.name}</span>
+                                  <span className="text-[10px] text-stone-400 block font-mono">SKU: {p.sku}</span>
+                                </div>
+                              </td>
+                              <td className="py-2.5">
+                                <span className="bg-stone-100 text-stone-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                                  {getCategoryLabel(p.category, lang)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 font-mono text-slate-900 font-bold">{setPriceFormat(p.price)}</td>
+                              <td className="py-2.5 font-mono text-stone-500">{setPriceFormat(p.costPrice)}</td>
+                              <td className="py-2.5">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  p.stockQty <= 5 ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-800'
+                                }`}>
+                                  {p.stockQty} {lang === 'bn' ? 'টি মজুদ' : 'units'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 text-right whitespace-nowrap">
+                                <button
+                                  id={`btn-catalog-edit-${p.id}`}
+                                  onClick={() => startEditProduct(p)}
+                                  className="p-1.5 hover:bg-amber-50 hover:text-amber-700 text-amber-600 rounded-lg transition-colors cursor-pointer mr-1"
+                                  title="Edit Product details"
+                                >
+                                  <Edit3 className="w-4.5 h-4.5" />
+                                </button>
+                                <button
+                                  id={`btn-catalog-delete-${p.id}`}
+                                  onClick={() => {
+                                    triggerConfirm(
+                                      lang === 'bn' ? 'মুছে ফেলার নিশ্চিতকরণ' : 'Delete Confirmation',
+                                      lang === 'bn' 
+                                        ? `আপনি কি সত্যি "${p.name}" ড্রপ বা মুছে ফেলতে চান?` 
+                                        : `Do you want to completely drop "${p.name}" from the public store?`,
+                                      () => {
+                                        deleteProduct(p.id);
+                                        // Also clear selection for this item if single deleted
+                                        setSelectedProdIds(prev => prev.filter(id => id !== p.id));
+                                      }
+                                    );
+                                  }}
+                                  className="p-1.5 hover:bg-red-50 hover:text-red-700 text-red-550 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete Product"
+                                >
+                                  <Trash2 className="w-4.5 h-4.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               </div>
+
             </div>
           </div>
         )}
@@ -1058,7 +1831,836 @@ export const AdminPanel: React.FC = () => {
             <SupabaseRLSConsole currentRole="admin" />
           </div>
         )}
+
+        {/* WooCommerce Categories Subtab */}
+        {activeSubTab === 'categories' && (
+          <div className="max-w-7xl mx-auto px-4 py-8 animate-fade-in text-left space-y-6">
+            <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h3 className="font-display font-extrabold text-lg text-stone-900">📂 Dynamic WooCommerce Category Catalog</h3>
+                <p className="text-xs text-stone-505">
+                  Manage active taxonomies, Bengali linguistic translations, descriptions, and publish states shown on client storefront categories.
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingCategory({ id: '', name: '', bnName: '', description: '', isActive: true })}
+                className="w-full md:w-auto px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Custom Category
+              </button>
+            </div>
+
+            {/* Editing / Creating Modal Form */}
+            {editingCategory && (
+              <div className="bg-amber-50/50 border-2 border-amber-500/10 rounded-3xl p-6 space-y-4 animate-fade-in">
+                <div className="flex justify-between items-center pb-2.5 border-b border-stone-250">
+                  <h4 className="font-bold text-sm text-stone-900">
+                    {editingCategory.id ? '✏️ Edit Category Taxonomy' : '📂 Create Brand New Storefront Category'}
+                  </h4>
+                  <button
+                    onClick={() => setEditingCategory(null)}
+                    className="p-1 text-stone-400 hover:text-stone-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!editingCategory.name || !editingCategory.bnName) {
+                      alert('Please specify both English and Bengali names!');
+                      return;
+                    }
+                    if (editingCategory.id) {
+                      editCategory(editingCategory);
+                      alert('Category updated securely.');
+                    } else {
+                      addCategory({
+                        name: editingCategory.name,
+                        bnName: editingCategory.bnName,
+                        description: editingCategory.description || '',
+                        isActive: editingCategory.isActive
+                      });
+                      alert('Category added safely.');
+                    }
+                    setEditingCategory(null);
+                  }}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                >
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-600 block uppercase">English Category Title *</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-1 focus:ring-emerald-600 outline-none"
+                      placeholder="e.g., Sundarbans Honey Specials"
+                      value={editingCategory.name}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-600 block uppercase">Bengali Translated Title *</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-1 focus:ring-emerald-600 outline-none"
+                      placeholder="যেমন: সুন্দরবনের খাঁটি মধু"
+                      value={editingCategory.bnName}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, bnName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[11px] font-bold text-stone-600 block uppercase">Operational Description (Bengali or English)</label>
+                    <textarea
+                      rows={2}
+                      className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-1 focus:ring-emerald-600 outline-none"
+                      placeholder="Describe scope, supply chain logistics or verified standards of items..."
+                      value={editingCategory.description || ''}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 md:col-span-2">
+                    <input
+                      type="checkbox"
+                      id="cat-active-checkbox"
+                      className="rounded border-stone-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                      checked={editingCategory.isActive}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, isActive: e.target.checked })}
+                    />
+                    <label htmlFor="cat-active-checkbox" className="text-xs font-semibold text-stone-700">
+                      Enable category instantly on user storefront grids & dropdown list menus
+                    </label>
+                  </div>
+                  <div className="md:col-span-2 flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCategory(null)}
+                      className="px-4 py-2 border rounded-xl text-xs font-semibold text-stone-500 hover:bg-stone-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold"
+                    >
+                      Save Configuration
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* List Table Grid */}
+            {categories.length === 0 ? (
+              <div className="bg-white rounded-2xl p-12 text-center text-stone-400">
+                No custom categories minted yet. Click the add button to configure dynamic taxonomies.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {categories.map((cat) => {
+                  const count = products.filter(p => p.category === cat.name).length;
+                  return (
+                    <div key={cat.id} className="bg-white rounded-2xl p-5 border border-stone-200/60 shadow-sm flex flex-col justify-between hover:border-amber-500/20 transition-all text-left">
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[9px] font-mono font-bold uppercase bg-stone-100 text-stone-500 px-2 py-0.5 rounded">ID: {cat.id}</span>
+                            <h4 className="font-bold text-sm text-stone-900 mt-1">{cat.name}</h4>
+                            <span className="text-xs text-emerald-805 font-medium font-sans">Bengali Name: {cat.bnName}</span>
+                          </div>
+                          <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold ${
+                            cat.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-850'
+                          }`}>
+                            {cat.isActive ? '● PUBLIC' : '● DEACTIVATED'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-500 mt-2 line-clamp-2 italic">{cat.description || 'No detailed description annotated for this taxonomy.'}</p>
+                      </div>
+                      <div className="flex justify-between items-center pt-4 mt-4 border-t border-stone-100">
+                        <span className="text-xs font-medium text-stone-400">Products Linked: <strong className="text-stone-950 font-bold">{count} products</strong></span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingCategory(cat)}
+                            className="p-1 px-2.5 bg-stone-50 border hover:bg-stone-100 rounded-lg text-stone-705 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-stone-500" /> Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (count > 0) {
+                                triggerAlert(
+                                  lang === 'bn' ? 'মুছে ফেলা অসম্ভব' : 'Cannot Delete Category',
+                                  lang === 'bn'
+                                    ? `ক্যাটাগরি "${cat.name}" মুছে ফেলা সম্ভব নয় কারণ এতে ${count} টি প্রোডাক্ট যুক্ত আছে।`
+                                    : `Cannot delete category "${cat.name}" as there are ${count} products currently assigned to this tab tag.`
+                                );
+                                return;
+                              }
+                              triggerConfirm(
+                                lang === 'bn' ? 'ক্যাটাগরি মুছুন' : 'Delete Category',
+                                lang === 'bn'
+                                  ? `আপনি কি নিশ্চিতভাবে "${cat.name}" ক্যাটাগরি মুছে ফেলতে চান?`
+                                  : `Are you sure you want to permanently delete taxonomy category "${cat.name}"?`,
+                                () => {
+                                  deleteCategory(cat.id);
+                                  triggerAlert(
+                                    lang === 'bn' ? 'সফল হয়েছে' : 'Success',
+                                    lang === 'bn' ? 'ক্যাটাগরি সফলভাবে মুছে ফেলা হয়েছে।' : 'Category removed successfully.'
+                                  );
+                                }
+                              );
+                            }}
+                            className="p-1 px-2 text-red-600 bg-red-50 border border-red-200 hover:bg-stone-100 rounded-lg text-xs font-bold font-sans cursor-pointer flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-500" /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* WooCommerce Coupons Subtab */}
+        {activeSubTab === 'coupons' && (
+          <div className="max-w-7xl mx-auto px-4 py-8 animate-fade-in text-left space-y-6">
+            <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h3 className="font-display font-extrabold text-lg text-stone-900">🎟️ Dynamic WooCommerce Coupon & Promo codes</h3>
+                <p className="text-xs text-stone-500">
+                  Control active promo rewards, set customized percent or flat discount rules, limit redemptions, and monitor usage rates.
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingCoupon({ id: '', code: '', discountType: 'Percentage', amount: 10, minOrderAmount: 0, usageLimit: 0, usageCount: 0, isActive: true })}
+                className="w-full md:w-auto px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Mint Global Promo Coupon
+              </button>
+            </div>
+
+            {/* Create/Edit coupon modal area */}
+            {editingCoupon && (
+              <div className="bg-amber-50/50 border-2 border-amber-500/10 rounded-3xl p-6 space-y-4 animate-fade-in">
+                <h4 className="font-bold text-sm text-stone-900 pb-2.5 border-b">
+                  {editingCoupon.id ? `Ticket Config: ${editingCoupon.code}` : '🎟️ Mint Elegant Global Discount Code'}
+                </h4>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!editingCoupon.code || !editingCoupon.amount) {
+                      alert('Coupon code and discount amount are mandatory fields!');
+                      return;
+                    }
+                    const codeUpper = editingCoupon.code.toUpperCase().trim();
+                    if (editingCoupon.id) {
+                      editCoupon({ ...editingCoupon, code: codeUpper });
+                      alert('Discount coupon parameters updated securely.');
+                    } else {
+                      addCoupon({
+                        code: codeUpper,
+                        discountType: editingCoupon.discountType,
+                        amount: Number(editingCoupon.amount),
+                        minOrderAmount: Number(editingCoupon.minOrderAmount || 0),
+                        usageLimit: Number(editingCoupon.usageLimit || 0),
+                        isActive: editingCoupon.isActive
+                      });
+                      alert('Coupon code issued on production system successfully!');
+                    }
+                    setEditingCoupon(null);
+                  }}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                >
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-600 block uppercase">Alphanumeric Promo Code *</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border rounded-xl text-xs bg-white font-mono uppercase focus:ring-1 focus:ring-emerald-600 outline-none font-bold text-stone-800"
+                      placeholder="e.g. BARAKAH20"
+                      value={editingCoupon.code}
+                      onChange={(e) => setEditingCoupon({ ...editingCoupon, code: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-600 block uppercase">Deduction Method *</label>
+                    <select
+                      className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-1 focus:ring-emerald-600 outline-none font-semibold text-stone-700"
+                      value={editingCoupon.discountType}
+                      onChange={(e) => setEditingCoupon({ ...editingCoupon, discountType: e.target.value as any })}
+                    >
+                      <option value="Percentage">Percentage % Off Order</option>
+                      <option value="Fixed">Fixed Amount Local Currency (৳) Off Order</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-600 block uppercase">Discount Worth Amount *</label>
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-1 focus:ring-emerald-600 outline-none font-mono font-semibold"
+                      value={editingCoupon.amount}
+                      onChange={(e) => setEditingCoupon({ ...editingCoupon, amount: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-600 block uppercase">Min Purchase Threshold (৳)</label>
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-1 focus:ring-emerald-600 outline-none font-mono"
+                      value={editingCoupon.minOrderAmount || 0}
+                      onChange={(e) => setEditingCoupon({ ...editingCoupon, minOrderAmount: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-600 block uppercase">Global Max Usage Limit (Redemptions)</label>
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-1 focus:ring-emerald-600 outline-none font-mono"
+                      value={editingCoupon.usageLimit || 0}
+                      onChange={(e) => setEditingCoupon({ ...editingCoupon, usageLimit: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-4">
+                    <input
+                      type="checkbox"
+                      id="coupon-active-check"
+                      className="rounded border-stone-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                      checked={editingCoupon.isActive}
+                      onChange={(e) => setEditingCoupon({ ...editingCoupon, isActive: e.target.checked })}
+                    />
+                    <label htmlFor="coupon-active-check" className="text-xs font-semibold text-stone-700">
+                      Instantly Active & Apply-ready
+                    </label>
+                  </div>
+                  <div className="lg:col-span-3 flex justify-end gap-2 pt-3 border-t">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCoupon(null)}
+                      className="px-4 py-2 border rounded-xl text-xs font-semibold text-stone-505 hover:bg-stone-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold"
+                    >
+                      Save Configuration
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* coupons list view cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {coupons.map((cp) => (
+                <div key={cp.id} className="relative bg-white rounded-2xl p-5 border border-stone-200/60 shadow-sm hover:border-amber-500/25 transition-all overflow-hidden flex flex-col justify-between text-left">
+                  <div className="absolute right-0 top-0 text-[60px] font-mono select-none pointer-events-none text-stone-50 font-black pr-3 pt-1">
+                    %
+                  </div>
+                  <div className="relative">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-mono font-bold text-xs uppercase bg-emerald-50 text-emerald-800 border border-emerald-100 px-3 py-1 rounded-xl">
+                        {cp.code}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                        cp.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {cp.isActive ? 'ACTIVE' : 'DEACTIVATED'}
+                      </span>
+                    </div>
+                    <div className="text-base font-extrabold text-stone-900 mt-2">
+                      {cp.discountType === 'Percentage' ? `${cp.amount}% Off Order` : `${setPriceFormat(cp.amount)} Flat Discount`}
+                    </div>
+                    <div className="text-xs text-stone-500 font-medium space-y-1.5 mt-3">
+                      <div>Min Purchase Requirement: <span className="text-stone-900 font-mono font-bold">{setPriceFormat(cp.minOrderAmount || 0)}</span></div>
+                      <div>Global Usage cap: <span className="text-stone-900 font-bold">{cp.usageLimit ? `${cp.usageLimit} redemptions` : 'No limits'}</span></div>
+                      <div>Total Redeemed: <span className="text-stone-900 font-mono font-bold">{cp.usageCount} times Used</span></div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-4 mt-4 border-t border-stone-100 justify-end relative">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(cp.code);
+                        alert(`Copied "${cp.code}" code to clipboard.`);
+                      }}
+                      className="px-2.5 py-1.5 bg-stone-50 hover:bg-stone-100 border text-stone-600 text-[10px] font-bold rounded-lg cursor-pointer transition-all"
+                    >
+                      Copy Code
+                    </button>
+                    <button
+                      onClick={() => setEditingCoupon(cp)}
+                      className="px-2.5 py-1.5 bg-stone-50 hover:bg-stone-100 border text-stone-600 text-[10px] font-bold rounded-lg cursor-pointer transition-all"
+                    >
+                      Edit Config
+                    </button>
+                    <button
+                      onClick={() => {
+                        triggerConfirm(
+                          lang === 'bn' ? 'কুপন মুছে ফেলুন' : 'Delete Promo Coupon',
+                          lang === 'bn'
+                            ? `আপনি কি নিশ্চিতভাবে "${cp.code}" কুপনটি মুছে ফেলতে চান?`
+                            : `Do you want to permanently delete coupon code "${cp.code}"?`,
+                          () => {
+                            deleteCoupon(cp.id);
+                            triggerAlert(
+                              lang === 'bn' ? 'সফল হয়েছে' : 'Success',
+                              lang === 'bn' ? 'কুপন সফলভাবে ডিলিট করা হয়েছে।' : 'Coupon removed successfully.'
+                            );
+                          }
+                        );
+                      }}
+                      className="px-2 py-1 bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 text-[10px] font-bold rounded-lg cursor-pointer transition-all"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* WooCommerce Manual Orders (POS) Subtab */}
+        {activeSubTab === 'manual-orders' && (
+          <div className="max-w-7xl mx-auto px-4 py-8 animate-fade-in text-left space-y-6">
+            <div className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm">
+              <h3 className="font-display font-bold text-lg text-stone-900">🛒 POS Manual Invoice & Order Creator</h3>
+              <p className="text-xs text-stone-500">
+                Create new orders directly on behalf of retail buyers, specify custom items, adjust quantities, apply dynamic coupons, and attribute referral credit to partners.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Product selector catalog */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-white rounded-3xl p-5 border border-stone-200/50 shadow-sm">
+                  <h4 className="font-bold text-sm text-stone-900 mb-3 block">📦 Live Product Catalog Selector ({products.length} Items)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[500px] overflow-y-auto pr-1">
+                    {products.map((p) => {
+                      const qtyInPOS = manualOrderItems.find(item => item.product.id === p.id)?.quantity || 0;
+                      return (
+                        <div key={p.id} className="bg-stone-50 border border-stone-200/70 p-3 rounded-2xl flex gap-3 items-center justify-between text-left">
+                          <img src={p.images[0]} className="w-12 h-12 object-cover rounded-xl shrink-0" alt="" />
+                          <div className="flex-1 min-w-0">
+                            <h5 className="font-bold text-[11px] text-stone-900 truncate leading-snug">{getLocalizedProductName(p.name, lang)}</h5>
+                            <span className="text-[10px] text-stone-400 font-mono tracking-wide block">Stock: {p.stockQty} items</span>
+                            <div className="font-mono text-xs font-bold text-emerald-800 mt-0.5">{setPriceFormat(p.price)}</div>
+                          </div>
+                          <div className="flex flex-col items-center gap-1 shrink-0">
+                            {qtyInPOS > 0 ? (
+                              <div className="flex items-center gap-1 bg-white border rounded-lg p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setManualOrderItems(prev => {
+                                      const matched = prev.find(item => item.product.id === p.id);
+                                      if (matched && matched.quantity > 1) {
+                                        return prev.map(item => item.product.id === p.id ? { ...item, quantity: item.quantity - 1 } : item);
+                                      }
+                                      return prev.filter(item => item.product.id !== p.id);
+                                    });
+                                  }}
+                                  className="w-5 h-5 bg-stone-100 rounded text-stone-800 flex items-center justify-center font-bold text-xs hover:bg-stone-200 cursor-pointer"
+                                    id={`btn-manual-pos-dec-${p.id}`}
+                                >
+                                  -
+                                </button>
+                                <span className="text-xs font-mono font-bold w-4 text-center">{qtyInPOS}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (qtyInPOS >= p.stockQty) {
+                                      alert('Overstock quantity not available!');
+                                      return;
+                                    }
+                                    setManualOrderItems(prev => prev.map(item => item.product.id === p.id ? { ...item, quantity: item.quantity + 1 } : item));
+                                  }}
+                                  className="w-5 h-5 bg-stone-100 rounded text-stone-850 flex items-center justify-center font-bold text-xs hover:bg-stone-200 cursor-pointer"
+                                    id={`btn-manual-pos-inc-${p.id}`}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (p.stockQty <= 0) {
+                                    alert('Out of stock!');
+                                    return;
+                                  }
+                                  setManualOrderItems(prev => [...prev, { product: p, quantity: 1 }]);
+                                }}
+                                className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-805 text-white rounded-lg text-[10px] font-bold cursor-pointer font-sans"
+                                id={`btn-manual-pos-add-${p.id}`}
+                              >
+                                + Add
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Selected active invoice lines */}
+                <div className="bg-white rounded-3xl p-5 border border-stone-200/50 shadow-sm space-y-3">
+                  <h4 className="font-bold text-sm text-stone-900 block border-b pb-2">🛒 Active Invoice Draft Items ({manualOrderItems.length} lines)</h4>
+                  {manualOrderItems.length === 0 ? (
+                    <p className="text-xs text-stone-400 py-12 text-center font-medium">No catalog products selected in manual invoice draft.</p>
+                  ) : (
+                    <div className="space-y-2">
+                       {manualOrderItems.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between text-xs border-b pb-2 text-left">
+                          <div className="min-w-0">
+                            <span className="font-bold text-stone-900 block truncate">{getLocalizedProductName(item.product.name, lang)}</span>
+                            <span className="text-stone-400 text-[10px]">Unit Price: {setPriceFormat(item.product.price)}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="font-mono text-stone-500 font-semibold">{item.quantity} units</span>
+                            <span className="font-mono font-bold text-stone-800 text-right w-20">{setPriceFormat(item.product.price * item.quantity)}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setManualOrderItems(prev => prev.filter(p => p.product.id !== item.product.id));
+                              }}
+                              className="text-stone-400 hover:text-red-500 font-bold p-1 cursor-pointer"
+                              id={`btn-manual-pos-remove-${item.product.id}`}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Billing and Placement checkout */}
+              <div className="lg:col-span-5 space-y-4">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (manualOrderItems.length === 0) {
+                      alert('Manual invoice has no items selected!');
+                      return;
+                    }
+                    if (!manualCustDetails.name || !manualCustDetails.mobile || !manualCustDetails.address) {
+                      alert('Customer Name, Mobile and Address details are mandatory!');
+                      return;
+                    }
+
+                    const formattedOrderItems = manualOrderItems.map(item => ({
+                      productId: item.product.id,
+                      name: item.product.name,
+                      quantity: item.quantity,
+                      price: item.product.price,
+                      image: item.product.images[0]
+                    }));
+
+                    const subtotal = manualOrderItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+
+                    let couponDiscountValue = 0;
+                    if (manualOrderCoupon) {
+                      if (subtotal >= (manualOrderCoupon.minOrderAmount || 0)) {
+                        if (manualOrderCoupon.discountType === 'Percentage') {
+                          couponDiscountValue = Math.round((subtotal * manualOrderCoupon.amount) / 100);
+                        } else {
+                          couponDiscountValue = manualOrderCoupon.amount;
+                        }
+                      }
+                    }
+
+                    const placed = placeOrder(
+                      {
+                        name: manualCustDetails.name,
+                        mobile: manualCustDetails.mobile,
+                        email: manualCustDetails.email || `${manualCustDetails.mobile}@dadajan.com`,
+                        address: manualCustDetails.address,
+                        district: manualCustDetails.district || 'Dhaka',
+                        area: manualCustDetails.area || 'Gulshan'
+                      },
+                      formattedOrderItems,
+                      manualCustDetails.referralCode,
+                      manualCustDetails.paymentMethod,
+                      couponDiscountValue
+                    );
+
+                    alert(`✓ WooCommerce manual invoice placed successfully!\n\nSystem Generated Order ID: ${placed.id}\nBuyer: ${placed.customerName}\nSubtotal: ${setPriceFormat(placed.subtotal)}\nDiscount: -${setPriceFormat(placed.discount)}\nTotal Payable: ${setPriceFormat(placed.total)}\nAssigned Dealer Hub: ${placed.assignedPartnerId}`);
+
+                    setManualOrderItems([]);
+                    setManualCustDetails({
+                      name: '',
+                      mobile: '',
+                      email: '',
+                      address: '',
+                      district: 'Dhaka',
+                      area: '',
+                      referralCode: '',
+                      paymentMethod: 'Cash on Delivery'
+                    });
+                    setManualOrderCoupon(null);
+                  }}
+                  className="bg-white rounded-3xl p-6 border border-stone-200/50 shadow-sm space-y-4"
+                >
+                  <h4 className="font-bold text-sm text-stone-900 border-b pb-2 block">📋 Buyer Details & Invoice Summary</h4>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-stone-500 block uppercase">Customer Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full px-3 py-2 border rounded-xl text-xs bg-white outline-none focus:ring-1 focus:ring-emerald-600"
+                        placeholder="e.g. Al-Amin Chowdhury"
+                        value={manualCustDetails.name}
+                        onChange={(e) => setManualCustDetails({ ...manualCustDetails, name: e.target.value })}
+                        id="input-manual-cust-name"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-stone-500 block uppercase">Customer Mobile Number *</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full px-3 py-2 border rounded-xl text-xs bg-white font-mono outline-none focus:ring-1 focus:ring-emerald-600"
+                        placeholder="e.g. 0172XXXXXXXX"
+                        value={manualCustDetails.mobile}
+                        onChange={(e) => setManualCustDetails({ ...manualCustDetails, mobile: e.target.value })}
+                        id="input-manual-cust-phone"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-stone-500 block uppercase">District *</label>
+                        <select
+                          className="w-full px-3 py-1.5 border rounded-xl text-xs bg-white font-semibold text-stone-705 focus:outline-none"
+                          value={manualCustDetails.district}
+                          onChange={(e) => setManualCustDetails({ ...manualCustDetails, district: e.target.value })}
+                          id="select-manual-cust-district"
+                        >
+                          <option value="Dhaka">Dhaka (ঢাকা)</option>
+                          <option value="Chattogram">Chattogram (চট্টগ্রাম)</option>
+                          <option value="Sylhet">Sylhet (সিলেট)</option>
+                          <option value="Rajshahi">Rajshahi (রাজশাহী)</option>
+                          <option value="Khulna">Khulna (খুলনা)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-stone-500 block uppercase">Area / Upazila *</label>
+                        <input
+                          type="text"
+                          required
+                          className="w-full px-3 py-2 border rounded-xl text-xs bg-white outline-none focus:ring-1 focus:ring-emerald-600"
+                          placeholder="e.g. Boalkhali / Mirpur"
+                          value={manualCustDetails.area}
+                          onChange={(e) => setManualCustDetails({ ...manualCustDetails, area: e.target.value })}
+                          id="input-manual-cust-area"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-stone-500 block uppercase">Detailed Delivery Address *</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full px-3 py-2 border rounded-xl text-xs bg-white outline-none focus:ring-1 focus:ring-emerald-600"
+                        placeholder="House / Flat, Village, Post office info..."
+                        value={manualCustDetails.address}
+                        onChange={(e) => setManualCustDetails({ ...manualCustDetails, address: e.target.value })}
+                        id="input-manual-cust-address"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-stone-500 block uppercase">Promo Coupon Code</label>
+                        <select
+                          className="w-full px-3 py-1.5 border rounded-xl text-xs bg-white text-stone-700 font-mono font-bold focus:outline-none"
+                          value={manualOrderCoupon?.code || ''}
+                          onChange={(e) => {
+                            const code = e.target.value;
+                            const found = coupons.find(c => c.code === code);
+                            if (found) {
+                              setManualOrderCoupon(found);
+                            } else {
+                              setManualOrderCoupon(null);
+                            }
+                          }}
+                          id="select-manual-cust-coupon"
+                        >
+                          <option value="">-- No Coupon --</option>
+                          {coupons.filter(c => c.isActive).map(c => (
+                            <option key={c.id} value={c.code}>{c.code}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-stone-500 block uppercase">Referral Imam Code</label>
+                        <select
+                          className="w-full px-3 py-1.5 border rounded-xl text-xs bg-white text-stone-700 font-mono focus:outline-none"
+                          value={manualCustDetails.referralCode}
+                          onChange={(e) => setManualCustDetails({ ...manualCustDetails, referralCode: e.target.value })}
+                          id="select-manual-cust-referral"
+                        >
+                          <option value="">-- Direct Sales (Admin) --</option>
+                          {partners.filter(p => p.role === 'Imam' && p.verifiedStatus === 'Approved').map(p => (
+                            <option key={p.id} value={p.referralCode}>{p.name} ({p.referralCode})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-stone-500 block uppercase">Payment Mode</label>
+                      <select
+                        className="w-full px-3 py-1.5 border rounded-xl text-xs bg-white font-semibold text-stone-700 focus:outline-none"
+                        value={manualCustDetails.paymentMethod}
+                        onChange={(e) => setManualCustDetails({ ...manualCustDetails, paymentMethod: e.target.value })}
+                        id="select-manual-cust-payment"
+                      >
+                        <option value="Cash on Delivery">Cash on Delivery</option>
+                        <option value="bKash">bKash (বিকাশ ম্যানুয়াল)</option>
+                        <option value="Nagad">Nagad (নগদ ম্যানুয়াল)</option>
+                        <option value="Bank Transfer">Bank Wire Transfer</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Calculations breakdown */}
+                  <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200">
+                    {(() => {
+                      const subtotal = manualOrderItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+                      const shipping = manualOrderItems.length > 0 ? 100 : 0;
+                      
+                      let discount = 0;
+                      let couponMsg = '';
+                      if (manualOrderCoupon) {
+                        if (subtotal >= (manualOrderCoupon.minOrderAmount || 0)) {
+                          if (manualOrderCoupon.discountType === 'Percentage') {
+                            discount = Math.round((subtotal * manualOrderCoupon.amount) / 100);
+                          } else {
+                            discount = manualOrderCoupon.amount;
+                          }
+                          couponMsg = `✓ Standard applied (${manualOrderCoupon.discountType === 'Percentage' ? `${manualOrderCoupon.amount}%` : '৳' + manualOrderCoupon.amount})`;
+                        } else {
+                          couponMsg = `⚠ Requires min. checkout BDT ${manualOrderCoupon.minOrderAmount}`;
+                        }
+                      }
+                      
+                      const totalPayable = Math.max(0, subtotal - discount + shipping);
+
+                      return (
+                        <div className="space-y-2 text-xs font-semibold text-stone-500">
+                          <div className="flex justify-between">
+                            <span>Cart Gross Subtotal:</span>
+                            <span className="font-mono text-stone-900 font-bold">{setPriceFormat(subtotal)}</span>
+                          </div>
+                          {discount > 0 && (
+                            <div className="flex justify-between text-emerald-800">
+                              <span>Coupon Discount:</span>
+                              <span className="font-mono font-black">-{setPriceFormat(discount)}</span>
+                            </div>
+                          )}
+                          {couponMsg && (
+                            <div className="text-[10px] text-emerald-700 font-bold text-right italic block">
+                              {couponMsg}
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span>Standard Shipping Fee:</span>
+                            <span className="font-mono text-stone-900">{setPriceFormat(shipping)}</span>
+                          </div>
+                          <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-stone-200/90 text-sm font-black text-stone-900 mt-2">
+                            <span className="text-stone-950 uppercase font-sans tracking-wide">Total Payable:</span>
+                            <span className="font-mono text-emerald-800 text-base">{setPriceFormat(totalPayable)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black transition-all shadow-md hover:shadow-lg cursor-pointer"
+                    id="btn-manual-pos-submit"
+                  >
+                    ✓ Complete Checkout & Recalculate Commissions
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ⚠️ Custom State-Based Confirm Modal */}
+      {modalConfirm.show && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-xl border border-stone-200 text-left space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-50 rounded-xl text-amber-600 border border-amber-100 shrink-0">
+                <AlertTriangle className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="font-display font-extrabold text-sm text-stone-900">{modalConfirm.title}</h4>
+                <p className="text-xs text-stone-500 mt-1 leading-relaxed font-sans">{modalConfirm.message}</p>
+              </div>
+            </div>
+            <div className="flex gap-2.5 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setModalConfirm(prev => ({ ...prev, show: false }))}
+                className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                {modalConfirm.cancelText || (lang === 'bn' ? 'বাতিল' : 'Cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalConfirm(prev => ({ ...prev, show: false }));
+                  modalConfirm.onConfirm();
+                }}
+                className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                {modalConfirm.confirmText || (lang === 'bn' ? 'হ্যাঁ, নিশ্চিত' : 'Yes, Confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ℹ️ Custom State-Based Alert Modal */}
+      {modalAlert.show && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-xl border border-stone-200 text-left space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600 border border-emerald-100 shrink-0">
+                <Check className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-display font-extrabold text-sm text-stone-900">{modalAlert.title}</h4>
+                <p className="text-xs text-stone-500 leading-relaxed font-sans">{modalAlert.message}</p>
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setModalAlert(prev => ({ ...prev, show: false }))}
+                className="px-4 py-2 bg-[#0f766e] hover:bg-[#0f766e]/90 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                {lang === 'bn' ? 'ঠিক আছে' : 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
